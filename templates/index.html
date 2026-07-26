@@ -3,52 +3,80 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Веб-мессенджер</title>
+    <title>Messenger</title>
     <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-        body { background-color: #121212; color: #e0e0e0; height: 100vh; display: flex; overflow: hidden; }
+        :root {
+            --bg-main: #0f172a;
+            --bg-sidebar: #1e293b;
+            --bg-panel: #1e293b;
+            --bg-chat: #0b0f19;
+            --border-color: #334155;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --accent: #3b82f6;
+            --accent-hover: #2563eb;
+            --my-msg: #2563eb;
+            --other-msg: #334155;
+            --online-green: #22c55e;
+        }
 
-        .sidebar { width: 300px; background-color: #1e1e1e; border-right: 1px solid #2d2d2d; display: flex; flex-direction: column; }
-        .profile-header { padding: 20px; background-color: #252525; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #2d2d2d; }
-        .profile-info h4 { color: #fff; font-size: 16px; }
-        .profile-info span { font-size: 12px; color: #4caf50; }
-        .logout-btn { color: #ff5252; text-decoration: none; font-size: 13px; }
-        .logout-btn:hover { text-decoration: underline; }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', system-ui, -apple-system, sans-serif; }
+        body { background-color: var(--bg-main); color: var(--text-main); height: 100vh; display: flex; overflow: hidden; }
 
-        .search-box { padding: 15px; }
-        .search-box input { width: 100%; padding: 10px; background: #2d2d2d; border: 1px solid #3d3d3d; border-radius: 6px; color: #fff; outline: none; }
-        .search-box input:focus { border-color: #0088cc; }
-
-        .users-list { flex: 1; overflow-y: auto; padding: 0 10px 10px 10px; }
-        .user-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 15px; margin-bottom: 6px; background: #252525; color: #fff; text-decoration: none; border-radius: 6px; transition: background 0.2s; }
-        .user-item:hover { background: #2d2d2d; }
-        .user-item.active { background: #0088cc; }
+        /* Сайдбар */
+        .sidebar { width: 340px; background-color: var(--bg-sidebar); border-right: 1px solid var(--border-color); display: flex; flex-direction: column; }
+        .profile-header { padding: 20px; background-color: rgba(15, 23, 42, 0.4); display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); }
+        .profile-info h4 { color: var(--text-main); font-size: 16px; font-weight: 600; }
         
-        .badge { background-color: #ff5252; color: white; border-radius: 10px; padding: 2px 8px; font-size: 11px; font-weight: bold; }
-
-        .chat-container { flex: 1; display: flex; flex-direction: column; background-color: #121212; position: relative; }
-        .chat-header { padding: 20px; background-color: #1e1e1e; border-bottom: 1px solid #2d2d2d; font-size: 18px; font-weight: bold; color: #fff; }
+        .status-indicator { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+        .dot { width: 8px; height: 8px; border-radius: 50%; background-color: var(--online-green); box-shadow: 0 0 8px rgba(34, 197, 94, 0.5); }
         
-        .messages-box { flex: 1; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
-        .message { max-width: 60%; padding: 10px 14px; border-radius: 8px; word-break: break-word; line-height: 1.4; font-size: 15px; }
-        .my-message { background-color: #005c4b; color: #fff; align-self: flex-end; border-bottom-right-radius: 2px; }
-        .other-message { background-color: #202c33; color: #fff; align-self: flex-start; border-bottom-left-radius: 2px; }
+        .logout-btn { color: #f43f5e; text-decoration: none; font-size: 13px; font-weight: 500; transition: opacity 0.2s; }
+        .logout-btn:hover { opacity: 0.8; }
 
-        .chat-form { padding: 15px; background-color: #1e1e1e; display: flex; gap: 10px; border-top: 1px solid #2d2d2d; position: relative; }
-        .chat-form input { flex: 1; padding: 12px; background: #2d2d2d; border: 1px solid #3d3d3d; border-radius: 6px; color: #fff; outline: none; }
-        .chat-form input:focus { border-color: #0088cc; }
+        .search-box { padding: 16px; }
+        .search-box input { width: 100%; padding: 10px 14px; background: var(--bg-main); border: 1px solid var(--border-color); border-radius: 8px; color: var(--text-main); outline: none; font-size: 14px; transition: border-color 0.2s; }
+        .search-box input:focus { border-color: var(--accent); }
+
+        .users-list { flex: 1; overflow-y: auto; padding: 0 12px 12px 12px; display: flex; flex-direction: column; gap: 4px; }
+        .user-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; background: transparent; color: var(--text-main); text-decoration: none; border-radius: 10px; transition: background 0.2s; }
+        .user-item:hover { background: rgba(255, 255, 255, 0.03); }
+        .user-item.active { background: var(--accent); }
         
-        .emoji-btn { background: #2d2d2d; border: 1px solid #3d3d3d; color: #fff; padding: 0 12px; border-radius: 6px; cursor: pointer; font-size: 18px; }
-        .emoji-btn:hover { background: #3d3d3d; }
+        .user-meta { display: flex; flex-direction: column; gap: 2px; }
+        .username { font-weight: 500; font-size: 14px; }
+        .user-status-text { font-size: 11px; color: var(--text-muted); }
+        .user-item.active .user-status-text { color: rgba(255, 255, 255, 0.8); }
 
-        .emoji-picker { display: none; position: absolute; bottom: 70px; left: 15px; background: #222; border: 1px solid #444; border-radius: 8px; padding: 10px; width: 260px; grid-template-columns: repeat(6, 1fr); gap: 6px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); z-index: 10; }
-        .emoji-picker span { font-size: 20px; text-align: center; cursor: pointer; padding: 5px; border-radius: 4px; }
-        .emoji-picker span:hover { background: #333; }
+        .badge { background-color: #f43f5e; color: white; border-radius: 12px; padding: 2px 8px; font-size: 11px; font-weight: 600; }
 
-        .chat-form button[type="submit"] { padding: 0 20px; background: #0088cc; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; transition: background 0.2s; }
-        .chat-form button[type="submit"]:hover { background: #006699; }
+        /* Окно чата */
+        .chat-container { flex: 1; display: flex; flex-direction: column; background-color: var(--bg-chat); position: relative; }
+        .chat-header { padding: 18px 24px; background-color: var(--bg-sidebar); border-bottom: 1px solid var(--border-color); display: flex; align-items: center; gap: 12px; }
+        .chat-header-info h3 { font-size: 16px; font-weight: 600; color: var(--text-main); }
+        .chat-header-status { font-size: 12px; color: var(--text-muted); display: flex; align-items: center; gap: 6px; margin-top: 2px; }
+        
+        .messages-box { flex: 1; padding: 24px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
+        .message { max-width: 65%; padding: 12px 16px; border-radius: 12px; word-break: break-word; line-height: 1.5; font-size: 14px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .my-message { background-color: var(--my-msg); color: #fff; align-self: flex-end; border-bottom-right-radius: 4px; }
+        .other-message { background-color: var(--other-msg); color: var(--text-main); align-self: flex-start; border-bottom-left-radius: 4px; }
 
-        .chat-placeholder { flex: 1; display: flex; justify-content: center; align-items: center; color: #666; font-size: 16px; }
+        .chat-form { padding: 16px 24px; background-color: var(--bg-sidebar); display: flex; gap: 12px; border-top: 1px solid var(--border-color); position: relative; align-items: center; }
+        .chat-form input[type="text"] { flex: 1; padding: 12px 16px; background: var(--bg-main); border: 1px solid var(--border-color); border-radius: 10px; color: var(--text-main); outline: none; font-size: 14px; transition: border-color 0.2s; }
+        .chat-form input[type="text"]:focus { border-color: var(--accent); }
+        
+        .emoji-btn { background: var(--bg-main); border: 1px solid var(--border-color); color: var(--text-main); padding: 10px 14px; border-radius: 10px; cursor: pointer; font-size: 16px; transition: background 0.2s; }
+        .emoji-btn:hover { background: var(--border-color); }
+
+        .emoji-picker { display: none; position: absolute; bottom: 75px; left: 24px; background: var(--bg-sidebar); border: 1px solid var(--border-color); border-radius: 12px; padding: 12px; width: 280px; grid-template-columns: repeat(6, 1fr); gap: 8px; box-shadow: 0 10px 25px rgba(0,0,0,0.4); z-index: 10; }
+        .emoji-picker span { font-size: 22px; text-align: center; cursor: pointer; padding: 6px; border-radius: 8px; transition: background 0.1s; }
+        .emoji-picker span:hover { background: rgba(255,255,255,0.05); }
+
+        .chat-form button[type="submit"] { padding: 12px 24px; background: var(--accent); color: #fff; border: none; border-radius: 10px; cursor: pointer; font-weight: 600; font-size: 14px; transition: background 0.2s, transform 0.1s; }
+        .chat-form button[type="submit"]:hover { background: var(--accent-hover); }
+        .chat-form button[type="submit"]:active { transform: scale(0.98); }
+
+        .chat-placeholder { flex: 1; display: flex; justify-content: center; align-items: center; color: var(--text-muted); font-size: 15px; background: var(--bg-chat); }
     </style>
 </head>
 <body>
@@ -57,7 +85,9 @@
         <div class="profile-header">
             <div class="profile-info">
                 <h4>{{ current_user.username }}</h4>
-                <span>● В сети</span>
+                <div class="status-indicator">
+                    <div class="dot"></div> В сети
+                </div>
             </div>
             <a href="/logout" class="logout-btn">Выйти</a>
         </div>
@@ -69,7 +99,16 @@
         <div class="users-list" id="usersListContainer">
             {% for u in users %}
             <a href="/?to={{ u.id }}" class="user-item {% if active_recipient and active_recipient.id == u.id %}active{% endif %}">
-                <span>{{ u.username }}</span>
+                <div class="user-meta">
+                    <span class="username">{{ u.username }}</span>
+                    <span class="user-status-text">
+                        {% if u.status == 'В сети' %}
+                            <span style="color: var(--online-green);">● В сети</span>
+                        {% else %}
+                            Был в сети недавно
+                        {% endif %}
+                    </span>
+                </div>
                 <span class="badge" id="badge-{{ u.id }}" style="{% if not unread_counts.get(u.id) %}display:none;{% endif %}">
                     {{ unread_counts.get(u.id, '') }}
                 </span>
@@ -81,7 +120,16 @@
     <div class="chat-container">
         {% if active_recipient %}
             <div class="chat-header">
-                Чат с: {{ active_recipient.username }}
+                <div class="chat-header-info">
+                    <h3>{{ active_recipient.username }}</h3>
+                    <div class="chat-header-status">
+                        {% if active_recipient.status == 'В сети' %}
+                            <span style="color: var(--online-green); display:inline-block; width:6px; height:6px; background:var(--online-green); border-radius:50%;"></span> В сети
+                        {% else %}
+                            Был в сети недавно
+                        {% endif %}
+                    </div>
+                </div>
             </div>
             
             <div class="messages-box" id="messagesBox">
@@ -107,7 +155,7 @@
             </form>
         {% else %}
             <div class="chat-placeholder">
-                Выберите собеседника из списка слева, чтобы начать общение
+                Выберите чат слева, чтобы начать общение
             </div>
         {% endif %}
     </div>
@@ -144,8 +192,8 @@
             let items = container.getElementsByClassName('user-item');
 
             for (let i = 0; i < items.length; i++) {
-                let text = items[i].textContent || items[i].innerText;
-                if (text.toLowerCase().indexOf(input) > -1) {
+                let text = items[i].querySelector('.username').textContent.toLowerCase();
+                if (text.indexOf(input) > -1) {
                     items[i].style.display = "flex";
                 } else {
                     items[i].style.display = "none";
@@ -153,7 +201,6 @@
             }
         }
 
-        // Отправка сообщения без перезагрузки страницы (AJAX)
         const chatForm = document.getElementById('chatForm');
         if (chatForm) {
             chatForm.addEventListener('submit', async function(e) {
@@ -173,18 +220,20 @@
                         method: 'POST',
                         body: formData
                     });
+                    
                     if (response.ok) {
                         input.value = '';
-                        // Сразу вызываем обновление чата, чтобы показать отправленное сообщение
                         updateChat();
+                    } else {
+                        let errText = await response.text();
+                        console.error("Ошибка сервера:", errText);
                     }
                 } catch (err) {
-                    console.error("Ошибка отправки:", err);
+                    console.error("Сетевая ошибка:", err);
                 }
             });
         }
 
-        // Автоматическое обновление сообщений и счетчиков (каждые 3 сек)
         const activeRecipientId = "{{ active_recipient.id if active_recipient else '' }}";
         
         async function updateChat() {
