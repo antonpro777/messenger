@@ -1,5 +1,5 @@
 import os
-from flask import Flask, render_template, request, redirect, url_for, session
+from flask import Flask, render_template, request, redirect, url_for, session, jsonify
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'super-secret-key-change-it')
@@ -41,29 +41,79 @@ def index():
             if res_users and hasattr(res_users, 'data'):
                 users = res_users.data
 
-            # Если выбран собеседник, находим его данные
             if active_recipient_id:
                 res_rec = db.table('users').select('*').eq('id', active_recipient_id).execute()
                 if res_rec and res_rec.data:
                     active_recipient = res_rec.data[0]
 
-                # Загружаем историю переписки между нами
-                # (Сообщения, где мы отправитель, а он получатель, ИЛИ наоборот)
+                # Загружаем историю переписки
                 res_msg = db.table('messages').select('*').or_(
                     f"and(sender_id.eq.{current_user_id},recipient_id.eq.{active_recipient_id}),and(sender_id.eq.{active_recipient_id},recipient_id.eq.{current_user_id})"
                 ).order('created_at').execute()
                 
                 if res_msg and hasattr(res_msg, 'data'):
                     messages = res_msg.data
+                    
+                # Отмечаем сообщения как прочитанные при открытии чата
+                db.table('messages').update({'is_read': True}).eq('sender_id', active_recipient_id).eq('recipient_id', current_user_id).execute()
 
         except Exception as e:
             print("Ошибка загрузки данных из БД:", e)
+
+    # Подсчет непрочитанных сообщений для каждого пользователя
+    unread_counts = {}
+    if db:
+        try:
+            res_unread = db.table('messages').select('sender_id').eq('recipient_id', current_user_id).eq('is_read', False).execute()
+            if res_unread and res_unread.data:
+                for row in res_unread.data:
+                    s_id = row['sender_id']
+                    unread_counts[s_id] = unread_counts.get(s_id, 0) + 1
+        except Exception as e:
+            print("Ошибка подсчета непрочитанных:", e)
 
     return render_template('index.html', 
                            current_user={'id': current_user_id, 'username': current_user_name}, 
                            users=users, 
                            messages=messages, 
-                           active_recipient=active_recipient)
+                           active_recipient=active_recipient,
+                           unread_counts=unread_counts)
+
+# API для получения новых сообщений и непрочитанных в реальном времени (без перезагрузки)
+@app.route('/get_messages')
+def get_messages():
+    if not session.get('user_id'):
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    current_user_id = session['user_id']
+    active_recipient_id = request.args.get('to', type=int)
+    
+    db = get_supabase()
+    if not db:
+        return jsonify({'messages': [], 'unread_counts': {}})
+    
+    try:
+        messages = []
+        if active_recipient_id:
+            res_msg = db.table('messages').select('*').or_(
+                f"and(sender_id.eq.{current_user_id},recipient_id.eq.{active_recipient_id}),and(sender_id.eq.{active_recipient_id},recipient_id.eq.{current_user_id})"
+            ).order('created_at').execute()
+            if res_msg and res_msg.data:
+                messages = res_msg.data
+                
+            # Автоматически помечаем как прочитанные
+            db.table('messages').update({'is_read': True}).eq('sender_id', active_recipient_id).eq('recipient_id', current_user_id).execute()
+
+        unread_counts = {}
+        res_unread = db.table('messages').select('sender_id').eq('recipient_id', current_user_id).eq('is_read', False).execute()
+        if res_unread and res_unread.data:
+            for row in res_unread.data:
+                s_id = row['sender_id']
+                unread_counts[s_id] = unread_counts.get(s_id, 0) + 1
+
+        return jsonify({'messages': messages, 'unread_counts': unread_counts, 'current_user_id': current_user_id})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/send', methods=['POST'])
 def send_message():
@@ -80,7 +130,8 @@ def send_message():
                 db.table('messages').insert({
                     'sender_id': session['user_id'],
                     'recipient_id': recipient_id,
-                    'content': content
+                    'content': content,
+                    'is_read': False
                 }).execute()
             except Exception as e:
                 print("Ошибка отправки сообщения:", e)
@@ -99,7 +150,6 @@ def login():
             else:
                 try:
                     existing = db.table('users').select('*').eq('username', username).execute()
-                    
                     if existing.data:
                         user_data = existing.data[0]
                     else:
