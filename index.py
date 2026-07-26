@@ -79,7 +79,7 @@ def index():
                            active_recipient=active_recipient,
                            unread_counts=unread_counts)
 
-# API для получения новых сообщений и непрочитанных в реальном времени (без перезагрузки)
+# API для получения новых сообщений и непрочитанных без перезагрузки
 @app.route('/get_messages')
 def get_messages():
     if not session.get('user_id'):
@@ -115,10 +115,11 @@ def get_messages():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+# API отправки сообщения (возвращает статус 204 для JS без перезагрузки)
 @app.route('/send', methods=['POST'])
 def send_message():
     if not session.get('user_id'):
-        return redirect(url_for('login'))
+        return '', 401
     
     recipient_id = request.form.get('recipient_id', type=int)
     content = request.form.get('content', '').strip()
@@ -135,8 +136,9 @@ def send_message():
                 }).execute()
             except Exception as e:
                 print("Ошибка отправки сообщения:", e)
+                return str(e), 500
                 
-    return redirect(url_for('index', to=recipient_id))
+    return '', 204
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
