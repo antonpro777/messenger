@@ -3,192 +3,334 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Мессенджер</title>
-    <button onclick="toggleTheme()" id="theme-toggle-btn" style="cursor: pointer; padding: 6px 12px;">🌙 Сменить тему</button>
+    <title>Messenger</title>
     <style>
-        /* Переменные для тем */
         :root {
-            --bg-color: #f4f4f9;
-            --text-color: #333;
-            --container-bg: #fff;
-            --border-color: #ddd;
-            --btn-bg: #007bff;
-            --btn-hover: #0056b3;
-            --msg-bg: #e9ecef;
+            --bg-main: #0f172a;
+            --bg-sidebar: #1e293b;
+            --bg-panel: #1e293b;
+            --bg-chat: #0b0f19;
+            --border-color: #334155;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --accent: #3b82f6;
+            --accent-hover: #2563eb;
+            --my-msg: #2563eb;
+            --other-msg: #334155;
+            --online-green: #22c55e;
         }
 
-        body.dark-theme {
-            --bg-color: #121212;
-            --text-color: #e0e0e0;
-            --container-bg: #1e1e1e;
-            --border-color: #333;
-            --btn-bg: #bb86fc;
-            --btn-hover: #3700b3;
-            --msg-bg: #2d2d2d;
+        /* Светлая тема */
+        body.light-theme {
+            --bg-main: #f1f5f9;
+            --bg-sidebar: #ffffff;
+            --bg-panel: #ffffff;
+            --bg-chat: #f8fafc;
+            --border-color: #cbd5e1;
+            --text-main: #0f172a;
+            --text-muted: #64748b;
+            --other-msg: #e2e8f0;
         }
 
-        body {
-            font-family: Arial, sans-serif;
-            background-color: var(--bg-color);
-            color: var(--text-color);
-            margin: 0;
-            padding: 20px;
-            transition: background 0.3s, color 0.3s;
-        }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', system-ui, -apple-system, sans-serif; }
+        body { background-color: var(--bg-main); color: var(--text-main); height: 100vh; display: flex; overflow: hidden; transition: background 0.3s, color 0.3s; }
 
-        .container {
-            max-width: 800px;
-            margin: 0 auto;
-            background: var(--container-bg);
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
-        }
+        /* Сайдбар */
+        .sidebar { width: 340px; background-color: var(--bg-sidebar); border-right: 1px solid var(--border-color); display: flex; flex-direction: column; }
+        .profile-header { padding: 20px; background-color: rgba(15, 23, 42, 0.4); display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); }
+        .profile-info h4 { color: var(--text-main); font-size: 16px; font-weight: 600; }
+        .profile-info .username-tag { color: var(--text-muted); font-size: 13px; margin-top: 2px; }
+        
+        .status-indicator { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+        .dot { width: 8px; height: 8px; border-radius: 50%; background-color: var(--online-green); box-shadow: 0 0 8px rgba(34, 197, 94, 0.5); }
+        
+        .profile-actions { display: flex; align-items: center; gap: 10px; }
+        .theme-toggle-btn { background: none; border: none; cursor: pointer; font-size: 18px; padding: 4px; border-radius: 6px; transition: background 0.2s; }
+        .theme-toggle-btn:hover { background: rgba(255,255,255,0.05); }
 
-        .header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            border-bottom: 1px solid var(--border-color);
-            padding-bottom: 15px;
-            margin-bottom: 20px;
-        }
+        .logout-btn { color: #f43f5e; text-decoration: none; font-size: 13px; font-weight: 500; transition: opacity 0.2s; }
+        .logout-btn:hover { opacity: 0.8; }
 
-        .profile-info h3 {
-            margin: 0 0 5px 0;
-        }
+        .search-box { padding: 16px; }
+        .search-box input { width: 100%; padding: 10px 14px; background: var(--bg-main); border: 1px solid var(--border-color); border-radius: 8px; color: var(--text-main); outline: none; font-size: 14px; transition: border-color 0.2s; }
+        .search-box input:focus { border-color: var(--accent); }
 
-        .profile-info p {
-            margin: 0;
-            color: #888;
-            font-size: 14px;
-        }
+        .users-list { flex: 1; overflow-y: auto; padding: 0 12px 12px 12px; display: flex; flex-direction: column; gap: 4px; }
+        .user-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; background: transparent; color: var(--text-main); text-decoration: none; border-radius: 10px; transition: background 0.2s; }
+        .user-item:hover { background: rgba(255, 255, 255, 0.03); }
+        .user-item.active { background: var(--accent); color: #fff; }
+        
+        .user-meta { display: flex; flex-direction: column; gap: 2px; }
+        .username { font-weight: 500; font-size: 14px; }
+        .user-status-text { font-size: 11px; color: var(--text-muted); }
+        .user-item.active .user-status-text { color: rgba(255, 255, 255, 0.8); }
 
-        .actions button, .actions a {
-            background-color: var(--btn-bg);
-            color: #fff;
-            border: none;
-            padding: 8px 12px;
-            border-radius: 4px;
-            cursor: pointer;
-            text-decoration: none;
-            font-size: 14px;
-            margin-left: 5px;
-        }
+        .badge { background-color: #f43f5e; color: white; border-radius: 12px; padding: 2px 8px; font-size: 11px; font-weight: 600; }
 
-        .actions button:hover, .actions a:hover {
-            background-color: var(--btn-hover);
-        }
+        /* Окно чата */
+        .chat-container { flex: 1; display: flex; flex-direction: column; background-color: var(--bg-chat); position: relative; }
+        .chat-header { padding: 18px 24px; background-color: var(--bg-sidebar); border-bottom: 1px solid var(--border-color); display: flex; align-items: center; gap: 12px; }
+        .chat-header-info h3 { font-size: 16px; font-weight: 600; color: var(--text-main); }
+        .chat-header-status { font-size: 12px; color: var(--text-muted); display: flex; align-items: center; gap: 6px; margin-top: 2px; }
+        
+        .messages-box { flex: 1; padding: 24px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
+        .message { max-width: 65%; padding: 12px 16px; border-radius: 12px; word-break: break-word; line-height: 1.5; font-size: 14px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .my-message { background-color: var(--my-msg); color: #fff; align-self: flex-end; border-bottom-right-radius: 4px; }
+        .other-message { background-color: var(--other-msg); color: var(--text-main); align-self: flex-start; border-bottom-left-radius: 4px; }
 
-        .messages-box {
-            height: 300px;
-            overflow-y: auto;
-            border: 1px solid var(--border-color);
-            padding: 10px;
-            border-radius: 4px;
-            margin-bottom: 20px;
-            background: var(--container-bg);
-        }
+        .chat-form { padding: 16px 24px; background-color: var(--bg-sidebar); display: flex; gap: 12px; border-top: 1px solid var(--border-color); position: relative; align-items: center; }
+        .chat-form input[type="text"] { flex: 1; padding: 12px 16px; background: var(--bg-main); border: 1px solid var(--border-color); border-radius: 10px; color: var(--text-main); outline: none; font-size: 14px; transition: border-color 0.2s; }
+        .chat-form input[type="text"]:focus { border-color: var(--accent); }
+        
+        .emoji-btn { background: var(--bg-main); border: 1px solid var(--border-color); color: var(--text-main); padding: 10px 14px; border-radius: 10px; cursor: pointer; font-size: 16px; transition: background 0.2s; }
+        .emoji-btn:hover { background: var(--border-color); }
 
-        .message {
-            background: var(--msg-bg);
-            padding: 8px 12px;
-            border-radius: 6px;
-            margin-bottom: 10px;
-        }
+        .emoji-picker { display: none; position: absolute; bottom: 75px; left: 24px; background: var(--bg-sidebar); border: 1px solid var(--border-color); border-radius: 12px; padding: 12px; width: 280px; grid-template-columns: repeat(6, 1fr); gap: 8px; box-shadow: 0 10px 25px rgba(0,0,0,0.4); z-index: 10; }
+        .emoji-picker span { font-size: 22px; text-align: center; cursor: pointer; padding: 6px; border-radius: 8px; transition: background 0.1s; }
+        .emoji-picker span:hover { background: rgba(255,255,255,0.05); }
 
-        .auth-links a {
-            color: var(--btn-bg);
-            text-decoration: none;
-            margin-right: 15px;
-        }
+        .chat-form button[type="submit"] { padding: 12px 24px; background: var(--accent); color: #fff; border: none; border-radius: 10px; cursor: pointer; font-weight: 600; font-size: 14px; transition: background 0.2s, transform 0.1s; }
+        .chat-form button[type="submit"]:hover { background: var(--accent-hover); }
+        .chat-form button[type="submit"]:active { transform: scale(0.98); }
 
-        /* Добавьте эти переменные и класс темы в ваши стили */
-body.dark-theme {
-    background-color: #121212 !important;
-    color: #e0e0e0 !important;
-}
-body.dark-theme .container, 
-body.dark-theme .messages-box,
-body.dark-theme .message {
-    background-color: #1e1e1e !important;
-    color: #e0e0e0 !important;
-    border-color: #333 !important;
-}
+        .chat-placeholder { flex: 1; display: flex; justify-content: center; align-items: center; color: var(--text-muted); font-size: 15px; background: var(--bg-chat); }
     </style>
 </head>
 <body>
 
-    <div class="container">
-        <!-- Шапка с профилем и кнопкой темы -->
-        <div class="header">
-            <div class="profile-section">
-                {% if current_user %}
-                    <div class="profile-info">
-                        <h3>Имя: {{ current_user.name }}</h3>
-                        <p>Ник: @{{ current_user.username }}</p>
-                    </div>
-                {% else %}
-                    <div class="auth-links">
-                        <a href="{{ url_for('login') }}">Войти</a>
-                        <a href="{{ url_for('register') }}">Регистрация</a>
-                    </div>
-                {% endif %}
+    <div class="sidebar">
+        <div class="profile-header">
+            <div class="profile-info">
+                <!-- Раздельный вывод имени и никнейма -->
+                <h4>{{ current_user.name }}</h4>
+                <div class="username-tag">@{{ current_user.username }}</div>
+                <div class="status-indicator">
+                    <div class="dot"></div> В сети
+                </div>
             </div>
-
-            <div class="actions">
-                <button onclick="toggleTheme()">🌙 Тема</button>
-                {% if current_user %}
-                    <a href="{{ url_for('logout') }}">Выйти</a>
-                {% endif %}
+            <div class="profile-actions">
+                <button class="theme-toggle-btn" onclick="toggleTheme()" title="Сменить тему">🌙</button>
+                <a href="/logout" class="logout-btn">Выйти</a>
             </div>
         </div>
 
-        <!-- Лента сообщений -->
-        <h2>Сообщения</h2>
-        <div class="messages-box">
-            {% if messages %}
-                {% for msg in messages %}
-                    <div class="message">
-                        <strong>ID пользователя {{ msg.sender_id }}:</strong> {{ msg.text if msg.text else msg.content }}
-                    </div>
-                {% endfor %}
-            {% else %}
-                <p style="color: #888; text-align: center;">Пока нет сообщений...</p>
-            {% endif %}
+        <div class="search-box">
+            <input type="text" id="searchUserInput" placeholder="Поиск контактов..." onkeyup="filterUsers()">
+        </div>
+
+        <div class="users-list" id="usersListContainer">
+            {% for u in users %}
+            <a href="/?to={{ u.id }}" class="user-item {% if active_recipient and active_recipient.id == u.id %}active{% endif %}">
+                <div class="user-meta">
+                    <span class="username">{{ u.username }}</span>
+                    <span class="user-status-text">
+                        {% if u.status == 'В сети' %}
+                            <span style="color: var(--online-green);">● В сети</span>
+                        {% else %}
+                            Был в сети недавно
+                        {% endif %}
+                    </span>
+                </div>
+                <span class="badge" id="badge-{{ u.id }}" style="{% if not unread_counts.get(u.id) %}display:none;{% endif %}">
+                    {{ unread_counts.get(u.id, '') }}
+                </span>
+            </a>
+            {% endfor %}
         </div>
     </div>
 
-    <!-- Скрипт смены темы -->
+    <div class="chat-container">
+        {% if active_recipient %}
+            <div class="chat-header">
+                <div class="chat-header-info">
+                    <h3>{{ active_recipient.username }}</h3>
+                    <div class="chat-header-status">
+                        {% if active_recipient.status == 'В сети' %}
+                            <span style="color: var(--online-green); display:inline-block; width:6px; height:6px; background:var(--online-green); border-radius:50%;"></span> В сети
+                        {% else %}
+                            Был в сети недавно
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            
+            <div class="messages-box" id="messagesBox">
+                {% for msg in messages %}
+                    <div class="message {% if msg.sender_id == current_user.id %}my-message{% else %}other-message{% endif %}">
+                        <p>{{ msg.content }}</p>
+                    </div>
+                {% endfor %}
+            </div>
+
+            <form id="chatForm" class="chat-form">
+                <input type="hidden" id="recipientId" value="{{ active_recipient.id }}">
+                <button type="button" class="emoji-btn" onclick="toggleEmojiPicker(event)">😊</button>
+                
+                <div class="emoji-picker" id="emojiPicker">
+                    <span onclick="addEmoji('😀')">😀</span><span onclick="addEmoji('😂')">😂</span><span onclick="addEmoji('😊')">😊</span><span onclick="addEmoji('😍')">😍</span><span onclick="addEmoji('👍')">👍</span><span onclick="addEmoji('🔥')">🔥</span>
+                    <span onclick="addEmoji('❤️')">❤️</span><span onclick="addEmoji('🎉')">🎉</span><span onclick="addEmoji('😎')">😎</span><span onclick="addEmoji('😢')">😢</span><span onclick="addEmoji('💩')">💩</span><span onclick="addEmoji('🚀')">🚀</span>
+                    <span onclick="addEmoji('✨')">✨</span><span onclick="addEmoji('🙏')">🙏</span><span onclick="addEmoji('👀')">👀</span><span onclick="addEmoji('💡')">💡</span><span onclick="addEmoji('🎉')">🎉</span><span onclick="addEmoji('💯')">💯</span>
+                </div>
+
+                <input type="text" id="messageInput" placeholder="Введите сообщение..." required autocomplete="off" autofocus>
+                <button type="submit">Отправить</button>
+            </form>
+        {% else %}
+            <div class="chat-placeholder">
+                Выберите чат слева, чтобы начать общение
+            </div>
+        {% endif %}
+    </div>
+
     <script>
+        // Скрипт переключения тем
         function toggleTheme() {
-            document.body.classList.toggle('dark-theme');
-            const theme = document.body.classList.contains('dark-theme') ? 'dark' : 'light';
+            document.body.classList.toggle('light-theme');
+            const theme = document.body.classList.contains('light-theme') ? 'light' : 'dark';
             localStorage.setItem('theme', theme);
+            updateThemeIcon();
         }
 
-        // Автоматическая установка сохраненной темы при загрузке страницы
-        document.addEventListener('DOMContentLoaded', () => {
-            if (localStorage.getItem('theme') === 'dark') {
-                document.body.classList.add('dark-theme');
+        function updateThemeIcon() {
+            const btn = document.querySelector('.theme-toggle-btn');
+            if (btn) {
+                btn.textContent = document.body.classList.contains('light-theme') ? '☀️' : '🌙';
             }
-        });
-    </script>
-    
-    <script>
-    function toggleTheme() {
-        document.body.classList.toggle('dark-theme');
-        const theme = document.body.classList.contains('dark-theme') ? 'dark' : 'light';
-        localStorage.setItem('theme', theme);
-    }
-
-    // Восстановление темы при перезагрузке
-    document.addEventListener('DOMContentLoaded', () => {
-        if (localStorage.getItem('theme') === 'dark') {
-            document.body.classList.add('dark-theme');
         }
-    });
-</script>
 
+        // Авто-применение темы при загрузке
+        document.addEventListener('DOMContentLoaded', () => {
+            if (localStorage.getItem('theme') === 'light') {
+                document.body.classList.add('light-theme');
+            }
+            updateThemeIcon();
+        });
+
+        const msgBox = document.getElementById('messagesBox');
+        if (msgBox) {
+            msgBox.scrollTop = msgBox.scrollHeight;
+        }
+
+        function toggleEmojiPicker(e) {
+            e.stopPropagation();
+            let picker = document.getElementById('emojiPicker');
+            picker.style.display = picker.style.display === 'grid' ? 'none' : 'grid';
+        }
+
+        function addEmoji(emoji) {
+            let input = document.getElementById('messageInput');
+            input.value += emoji;
+            input.focus();
+            document.getElementById('emojiPicker').style.display = 'none';
+        }
+
+        window.onclick = function(event) {
+            let picker = document.getElementById('emojiPicker');
+            if (picker && !event.target.classList.contains('emoji-btn') && !picker.contains(event.target)) {
+                picker.style.display = 'none';
+            }
+        }
+
+        function filterUsers() {
+            let input = document.getElementById('searchUserInput').value.toLowerCase();
+            let container = document.getElementById('usersListContainer');
+            let items = container.getElementsByClassName('user-item');
+
+            for (let i = 0; i < items.length; i++) {
+                let text = items[i].querySelector('.username').textContent.toLowerCase();
+                if (text.indexOf(input) > -1) {
+                    items[i].style.display = "flex";
+                } else {
+                    items[i].style.display = "none";
+                }
+            }
+        }
+
+        const chatForm = document.getElementById('chatForm');
+        if (chatForm) {
+            chatForm.addEventListener('submit', async function(e) {
+                e.preventDefault();
+                let input = document.getElementById('messageInput');
+                let recipientId = document.getElementById('recipientId').value;
+                let content = input.value.trim();
+
+                if (!content) return;
+
+                let formData = new URLSearchParams();
+                formData.append('recipient_id', recipientId);
+                formData.append('content', content);
+
+                try {
+                    let response = await fetch('/send', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    
+                    if (response.ok) {
+                        input.value = '';
+                        updateChat();
+                    } else {
+                        let errText = await response.text();
+                        console.error("Ошибка сервера:", errText);
+                    }
+                } catch (err) {
+                    console.error("Сетевая ошибка:", err);
+                }
+            });
+        }
+
+        const activeRecipientId = "{{ active_recipient.id if active_recipient else '' }}";
+        
+        async function updateChat() {
+            try {
+                let url = '/get_messages';
+                if (activeRecipientId) url += `?to=${activeRecipientId}`;
+                
+                let response = await fetch(url);
+                if (!response.ok) return;
+                let data = await response.json();
+
+                for (let userId in data.unread_counts) {
+                    let badge = document.getElementById(`badge-${userId}`);
+                    if (badge) {
+                        let count = data.unread_counts[userId];
+                        badge.textContent = count;
+                        badge.style.display = count > 0 ? 'inline-block' : 'none';
+                    }
+                }
+
+                if (activeRecipientId && msgBox) {
+                    let isAtBottom = msgBox.scrollHeight - msgBox.scrollTop <= msgBox.clientHeight + 50;
+                    
+                    let html = '';
+                    data.messages.forEach(msg => {
+                        let msgClass = (msg.sender_id == data.current_user_id) ? 'my-message' : 'other-message';
+                        html += `<div class="message ${msgClass}"><p>${escapeHtml(msg.content)}</p></div>`;
+                    });
+                    
+                    if (msgBox.innerHTML !== html) {
+                        msgBox.innerHTML = html;
+                        if (isAtBottom) {
+                            msgBox.scrollTop = msgBox.scrollHeight;
+                        }
+                    }
+                }
+            } catch (err) {
+                console.error("Ошибка автообновления:", err);
+            }
+        }
+
+        setInterval(updateChat, 3000);
+
+        function escapeHtml(text) {
+            return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+        }
+
+        // Отправка сигнала активности каждые 15 секунд
+        function sendHeartbeat() {
+            fetch('/heartbeat', { method: 'POST' }).catch(err => console.log(err));
+        }
+        setInterval(sendHeartbeat, 15000);
+    </script>
 </body>
 </html>
