@@ -231,7 +231,7 @@
     </div>
 
     <!-- JavaScript с логикой поиска -->
-    <script>
+   <script>
         let notificationVolume = 0.5;
 
         function updateVolume(val) {
@@ -275,7 +275,7 @@
             box.scrollTop = box.scrollHeight;
         }
 
-        // Функция фильтрации списка пользователей по введенному тексту
+        // Функция фильтрации пользователей по имени
         function filterUsers() {
             const query = document.getElementById('searchInput').value.toLowerCase();
             const userItems = document.querySelectorAll('.user-item');
@@ -290,20 +290,26 @@
             });
         }
 
-        // Загрузка списка пользователей
+        // Рендерим список пользователей, пришедших из базы данных Flask
         window.onload = function() {
             const userList = document.getElementById('userList');
-            const dummyUsers = [
-                { id: 1, username: 'Александр', status: 'В сети' },
-                { id: 2, username: 'Мария', status: 'Отошла' },
-                { id: 3, username: 'Алексей', status: 'Был недавно' },
-                { id: 4, username: 'Екатерина', status: 'В сети' }
+            
+            // Превращаем список из Flask в удобный формат JavaScript
+            const dbUsers = [
+                {% for u in users %}
+                { id: "{{ u.id }}", username: "{{ u.username }}", status: "{{ u.status or 'В сети' }}" },
+                {% endfor %}
             ];
 
-            dummyUsers.forEach(user => {
+            // Получаем ID текущего пользователя, чтобы не выводить его самого в список чатов (опционально)
+            const currentUsername = "{{ current_user.username if current_user is defined else '' }}";
+
+            dbUsers.forEach(user => {
+                // Если не хотите показывать себя в списке контактов, можно раскомментировать строку ниже:
+                // if (user.username === currentUsername) return;
+
                 const item = document.createElement('div');
                 item.className = 'user-item';
-                // Сохраняем имя в дата-атрибут для удобного поиска
                 item.setAttribute('data-username', user.username);
                 item.innerHTML = `<span>${user.username}</span><span style="font-size:10px; color:gray;">${user.status}</span>`;
                 
@@ -313,6 +319,7 @@
                     document.getElementById('activeChatName').innerText = user.username;
                     document.getElementById('activeUserStatus').innerText = user.status;
                     document.getElementById('chatArea').style.display = 'flex';
+                    // Здесь в дальнейшем мы загрузим историю сообщений с этим пользователем
                 };
                 userList.appendChild(item);
             });
