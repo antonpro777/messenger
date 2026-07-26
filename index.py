@@ -4,46 +4,88 @@ from flask import Flask, render_template, request, redirect, url_for, session
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'super-secret-key-change-it')
 
-# Безопасная инициализация Supabase
-supabase = None
-try:
-    from supabase import create_client
-    SUPABASE_URL = os.environ.get('SUPABASE_URL')
-    SUPABASE_KEY = os.environ.get('SUPABASE_KEY')
-    if SUPABASE_URL and SUPABASE_KEY:
-        supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
-except Exception as e:
-    print("Ошибка подключения к Supabase:", e)
+def get_supabase():
+    SUPABASE_URL = os.environ.get('SUPABASE_URL', '').strip()
+    SUPABASE_KEY = os.environ.get('SUPABASE_KEY', '').strip()
+    
+    if not SUPABASE_URL or not SUPABASE_KEY:
+        return None
+    if not SUPABASE_URL.startswith('http://') and not SUPABASE_URL.startswith('https://'):
+        return None
 
-@app.before_request
-def load_user():
-    if 'user_id' in session:
-        class User:
-            id = session['user_id']
-            username = session['username']
-            status = session.get('status', 'В сети')
-        app.config['CURRENT_USER'] = User()
-    else:
-        app.config['CURRENT_USER'] = None
+    try:
+        from supabase import create_client
+        return create_client(SUPABASE_URL, SUPABASE_KEY)
+    except Exception as e:
+        print("Ошибка инициализации клиента Supabase:", e)
+        return None
 
 @app.route('/')
 def index():
     if not session.get('user_id'):
         return redirect(url_for('login'))
     
-    current_user = app.config.get('CURRENT_USER')
+    current_user_id = session['user_id']
+    current_user_name = session['username']
     
-    # Безопасная загрузка пользователей
+    db = get_supabase()
     users = []
-    if supabase:
-        try:
-            response = supabase.table('users').select('*').execute()
-            if response and hasattr(response, 'data'):
-                users = response.data
-        except Exception as e:
-            print("Ошибка запроса к таблице users:", e)
+    messages = []
+    active_recipient_id = request.args.get('to', type=int)
+    active_recipient = None
 
-    return render_template('index.html', current_user=current_user, users=users)
+    if db:
+        try:
+            # Получаем всех пользователей, кроме себя
+            res_users = db.table('users').select('*').neq('id', current_user_id).execute()
+            if res_users and hasattr(res_users, 'data'):
+                users = res_users.data
+
+            # Если выбран собеседник, находим его данные
+            if active_recipient_id:
+                res_rec = db.table('users').select('*').eq('id', active_recipient_id).execute()
+                if res_rec and res_rec.data:
+                    active_recipient = res_rec.data[0]
+
+                # Загружаем историю переписки между нами
+                # (Сообщения, где мы отправитель, а он получатель, ИЛИ наоборот)
+                res_msg = db.table('messages').select('*').or_(
+                    f"and(sender_id.eq.{current_user_id},recipient_id.eq.{active_recipient_id}),and(sender_id.eq.{active_recipient_id},recipient_id.eq.{current_user_id})"
+                ).order('created_at').execute()
+                
+                if res_msg and hasattr(res_msg, 'data'):
+                    messages = res_msg.data
+
+        except Exception as e:
+            print("Ошибка загрузки данных из БД:", e)
+
+    return render_template('index.html', 
+                           current_user={'id': current_user_id, 'username': current_user_name}, 
+                           users=users, 
+                           messages=messages, 
+                           active_recipient=active_recipient)
+
+@app.route('/send', methods=['POST'])
+def send_message():
+    if not session.get('user_id'):
+        return redirect(url_for('login'))
+    
+    recipient_id = request.form.get('recipient_id', type=int)
+    content = request.form.get('content', '').strip()
+    
+    if recipient_id and content:
+        db = get_supabase()
+        if db:
+            try:
+                db.table('messages').insert({
+                    'sender_id': session['user_id'],
+                    'recipient_id': recipient_id,
+                    'content': content
+                }).execute()
+            except Exception as e:
+                print("Ошибка отправки сообщения:", e)
+                
+    return redirect(url_for('index', to=recipient_id))
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -51,16 +93,17 @@ def login():
     if request.method == 'POST':
         username = request.form.get('username', '').strip()
         if username:
-            if not supabase:
-                error = "База данных не настроена (проверьте переменные окружения SUPABASE_URL/KEY)"
+            db = get_supabase()
+            if not db:
+                error = "Ошибка: не заданы или некорректны SUPABASE_URL / SUPABASE_KEY в настройках Vercel."
             else:
                 try:
-                    existing = supabase.table('users').select('*').eq('username', username).execute()
+                    existing = db.table('users').select('*').eq('username', username).execute()
                     
                     if existing.data:
                         user_data = existing.data[0]
                     else:
-                        new_user = supabase.table('users').insert({'username': username, 'status': 'В сети'}).execute()
+                        new_user = db.table('users').insert({'username': username, 'status': 'В сети'}).execute()
                         user_data = new_user.data[0]
                     
                     session['user_id'] = user_data['id']
@@ -82,7 +125,7 @@ def login():
             input {{ width: 100%; padding: 10px; margin: 10px 0 20px; background: #333; border: 1px solid #444; color: #fff; border-radius: 4px; box-sizing: border-box; }}
             button {{ width: 100%; padding: 10px; background: #0088cc; color: white; border: none; border-radius: 4px; cursor: pointer; }}
             button:hover {{ background: #006699; }}
-            .error {{ color: #ff4d4d; font-size: 13px; margin-bottom: 10px; background: rgba(255,77,77,0.1); padding: 8px; border-radius: 4px; }}
+            .error {{ color: #ff4d4d; font-size: 13px; margin-bottom: 10px; background: rgba(255,77,77,0.1); padding: 8px; border-radius: 4px; line-height: 1.4; }}
         </style>
     </head>
     <body>
