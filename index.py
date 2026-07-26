@@ -15,9 +15,13 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 @app.route('/')
 def index():
-    # Проверка авторизации через сессию
-    if 'user' not in session:
-        return redirect(url_for('login'))
+    # Проверяем, есть ли пользователь в сессии, и достаем его имя
+    username = session.get('user') # или как вы сохраняете его при логине
+    
+    # Получаем сообщения из базы...
+    messages = [...] # ваш текущий код загрузки сообщений
+    
+    return render_template('index.html', username=username, messages=messages)
     
     # Загружаем сообщения (если таблица messages существует)
     messages = []
