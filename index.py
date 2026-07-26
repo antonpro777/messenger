@@ -2,6 +2,7 @@ from flask import Flask, render_template, request, redirect, url_for, session, j
 from supabase import create_client, Client
 import os
 from datetime import datetime
+from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'super_secret_messenger_key')
@@ -39,7 +40,6 @@ def heartbeat():
     db = get_supabase()
     if db:
         try:
-            # Безопасно обновляем статус без падения, если колонки нет
             db.table('users').update({'status': 'В сети'}).eq('id', session['user_id']).execute()
         except Exception as e:
             print("Ошибка heartbeat:", e)
@@ -166,22 +166,28 @@ def login():
     error = None
     if request.method == 'POST':
         username = request.form.get('username', '').strip()
+        password = request.form.get('password', '')
+        
         db = get_supabase()
-        if db and username:
+        if db and username and password:
             try:
                 res = db.table('users').select('*').eq('username', username).execute()
                 if res and res.data:
                     user = res.data[0]
-                    session['user_id'] = user['id']
-                    session['username'] = user['username']
-                    return redirect(url_for('index'))
+                    # Проверяем хэш пароля
+                    if user.get('password_hash') and check_password_hash(user['password_hash'], password):
+                        session['user_id'] = user['id']
+                        session['username'] = user['username']
+                        return redirect(url_for('index'))
+                    else:
+                        error = 'Неверный пароль'
                 else:
                     error = 'Пользователь не найден'
             except Exception as e:
                 print("Ошибка входа:", e)
                 error = 'Ошибка базы данных'
         else:
-            error = 'Введите имя пользователя'
+            error = 'Заполните все поля'
 
     return render_template('login.html', error=error)
 
@@ -190,14 +196,23 @@ def register():
     error = None
     if request.method == 'POST':
         username = request.form.get('username', '').strip()
+        password = request.form.get('password', '')
+        
         db = get_supabase()
-        if db and username:
+        if db and username and password:
             try:
                 res = db.table('users').select('*').eq('username', username).execute()
                 if res and res.data:
                     error = 'Такое имя уже занято'
                 else:
-                    new_user = db.table('users').insert({'username': username, 'status': 'В сети'}).execute()
+                    # Хэшируем пароль перед сохранением
+                    pwd_hash = generate_password_hash(password)
+                    new_user = db.table('users').insert({
+                        'username': username, 
+                        'password_hash': pwd_hash, 
+                        'status': 'В сети'
+                    }).execute()
+                    
                     if new_user and new_user.data:
                         user = new_user.data[0]
                         session['user_id'] = user['id']
@@ -207,7 +222,7 @@ def register():
                 print("Ошибка регистрации:", e)
                 error = 'Ошибка базы данных'
         else:
-            error = 'Введите имя'
+            error = 'Заполните все поля'
 
     return render_template('register.html', error=error)
 
