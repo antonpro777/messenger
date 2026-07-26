@@ -20,6 +20,25 @@ def get_supabase():
         print("Ошибка инициализации клиента Supabase:", e)
         return None
 
+def fetch_messages_between(db, user1_id, user2_id):
+    """Надежная загрузка сообщений без сложных OR-фильтров"""
+    try:
+        # Сообщения от user1 к user2
+        res1 = db.table('messages').select('*').eq('sender_id', user1_id).eq('recipient_id', user2_id).execute()
+        msgs1 = res1.data if res1 and res1.data else []
+
+        # Сообщения от user2 к user1
+        res2 = db.table('messages').select('*').eq('sender_id', user2_id).eq('recipient_id', user1_id).execute()
+        msgs2 = res2.data if res2 and res2.data else []
+
+        # Объединяем и сортируем по времени создания
+        all_msgs = msgs1 + msgs2
+        all_msgs.sort(key=lambda x: x.get('created_at', ''))
+        return all_msgs
+    except Exception as e:
+        print("Ошибка получения сообщений:", e)
+        return []
+
 @app.route('/')
 def index():
     if not session.get('user_id'):
@@ -36,9 +55,8 @@ def index():
 
     if db:
         try:
-            # Получаем всех пользователей, кроме себя
             res_users = db.table('users').select('*').neq('id', current_user_id).execute()
-            if res_users and hasattr(res_users, 'data'):
+            if res_users and res_users.data:
                 users = res_users.data
 
             if active_recipient_id:
@@ -46,21 +64,14 @@ def index():
                 if res_rec and res_rec.data:
                     active_recipient = res_rec.data[0]
 
-                # Загружаем историю переписки
-                res_msg = db.table('messages').select('*').or_(
-                    f"and(sender_id.eq.{current_user_id},recipient_id.eq.{active_recipient_id}),and(sender_id.eq.{active_recipient_id},recipient_id.eq.{current_user_id})"
-                ).order('created_at').execute()
+                messages = fetch_messages_between(db, current_user_id, active_recipient_id)
                 
-                if res_msg and hasattr(res_msg, 'data'):
-                    messages = res_msg.data
-                    
-                # Отмечаем сообщения как прочитанные при открытии чата
+                # Отмечаем как прочитанные
                 db.table('messages').update({'is_read': True}).eq('sender_id', active_recipient_id).eq('recipient_id', current_user_id).execute()
 
         except Exception as e:
             print("Ошибка загрузки данных из БД:", e)
 
-    # Подсчет непрочитанных сообщений для каждого пользователя
     unread_counts = {}
     if db:
         try:
@@ -79,7 +90,6 @@ def index():
                            active_recipient=active_recipient,
                            unread_counts=unread_counts)
 
-# API для получения новых сообщений и непрочитанных без перезагрузки
 @app.route('/get_messages')
 def get_messages():
     if not session.get('user_id'):
@@ -95,13 +105,7 @@ def get_messages():
     try:
         messages = []
         if active_recipient_id:
-            res_msg = db.table('messages').select('*').or_(
-                f"and(sender_id.eq.{current_user_id},recipient_id.eq.{active_recipient_id}),and(sender_id.eq.{active_recipient_id},recipient_id.eq.{current_user_id})"
-            ).order('created_at').execute()
-            if res_msg and res_msg.data:
-                messages = res_msg.data
-                
-            # Автоматически помечаем как прочитанные
+            messages = fetch_messages_between(db, current_user_id, active_recipient_id)
             db.table('messages').update({'is_read': True}).eq('sender_id', active_recipient_id).eq('recipient_id', current_user_id).execute()
 
         unread_counts = {}
@@ -113,32 +117,36 @@ def get_messages():
 
         return jsonify({'messages': messages, 'unread_counts': unread_counts, 'current_user_id': current_user_id})
     except Exception as e:
+        print("Ошибка в /get_messages:", str(e))
         return jsonify({'error': str(e)}), 500
 
-# API отправки сообщения (возвращает статус 204 для JS без перезагрузки)
 @app.route('/send', methods=['POST'])
 def send_message():
     if not session.get('user_id'):
-        return '', 401
+        return jsonify({'error': 'Unauthorized'}), 401
     
     recipient_id = request.form.get('recipient_id', type=int)
     content = request.form.get('content', '').strip()
     
-    if recipient_id and content:
-        db = get_supabase()
-        if db:
-            try:
-                db.table('messages').insert({
-                    'sender_id': session['user_id'],
-                    'recipient_id': recipient_id,
-                    'content': content,
-                    'is_read': False
-                }).execute()
-            except Exception as e:
-                print("Ошибка отправки сообщения:", e)
-                return str(e), 500
-                
-    return '', 204
+    if not recipient_id or not content:
+        return jsonify({'error': 'Missing fields'}), 400
+
+    db = get_supabase()
+    if not db:
+        return jsonify({'error': 'No DB connection'}), 500
+        
+    try:
+        response = db.table('messages').insert({
+            'sender_id': int(session['user_id']),
+            'recipient_id': int(recipient_id),
+            'content': content,
+            'is_read': False
+        }).execute()
+        
+        return jsonify({'status': 'success', 'data': response.data}), 200
+    except Exception as e:
+        print("ОШИБКА ПРИ ОТПРАВКЕ СООБЩЕНИЯ:", str(e))
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -148,7 +156,7 @@ def login():
         if username:
             db = get_supabase()
             if not db:
-                error = "Ошибка: не заданы или некорректны SUPABASE_URL / SUPABASE_KEY в настройках Vercel."
+                error = "Ошибка: не заданы SUPABASE_URL / SUPABASE_KEY в настройках Vercel."
             else:
                 try:
                     existing = db.table('users').select('*').eq('username', username).execute()
@@ -160,7 +168,6 @@ def login():
                     
                     session['user_id'] = user_data['id']
                     session['username'] = user_data['username']
-                    session['status'] = user_data.get('status', 'В сети')
                     return redirect(url_for('index'))
                 except Exception as e:
                     error = f"Ошибка базы данных: {str(e)}"
