@@ -21,22 +21,21 @@ def get_supabase():
         return None
 
 def fetch_messages_between(db, user1_id, user2_id):
-    """Надежная загрузка сообщений без сложных OR-фильтров"""
+    """Безопасная загрузка и сортировка сообщений"""
     try:
-        # Сообщения от user1 к user2
         res1 = db.table('messages').select('*').eq('sender_id', user1_id).eq('recipient_id', user2_id).execute()
-        msgs1 = res1.data if res1 and res1.data else []
+        msgs1 = res1.data if res1 and hasattr(res1, 'data') and res1.data else []
 
-        # Сообщения от user2 к user1
         res2 = db.table('messages').select('*').eq('sender_id', user2_id).eq('recipient_id', user1_id).execute()
-        msgs2 = res2.data if res2 and res2.data else []
+        msgs2 = res2.data if res2 and hasattr(res2, 'data') and res2.data else []
 
-        # Объединяем и сортируем по времени создания
         all_msgs = msgs1 + msgs2
-        all_msgs.sort(key=lambda x: x.get('created_at', ''))
+        
+        # Безопасная сортировка: если у сообщения нет created_at, ставим пустую строку
+        all_msgs.sort(key=lambda x: x.get('created_at') or '')
         return all_msgs
     except Exception as e:
-        print("Ошибка получения сообщений:", e)
+        print("Ошибка получения сообщений в функции:", str(e))
         return []
 
 @app.route('/')
@@ -106,18 +105,29 @@ def get_messages():
         messages = []
         if active_recipient_id:
             messages = fetch_messages_between(db, current_user_id, active_recipient_id)
-            db.table('messages').update({'is_read': True}).eq('sender_id', active_recipient_id).eq('recipient_id', current_user_id).execute()
+            try:
+                db.table('messages').update({'is_read': True}).eq('sender_id', active_recipient_id).eq('recipient_id', current_user_id).execute()
+            except Exception as e:
+                print("Ошибка обновления статуса чтения:", e)
 
         unread_counts = {}
-        res_unread = db.table('messages').select('sender_id').eq('recipient_id', current_user_id).eq('is_read', False).execute()
-        if res_unread and res_unread.data:
-            for row in res_unread.data:
-                s_id = row['sender_id']
-                unread_counts[s_id] = unread_counts.get(s_id, 0) + 1
+        try:
+            res_unread = db.table('messages').select('sender_id').eq('recipient_id', current_user_id).eq('is_read', False).execute()
+            if res_unread and hasattr(res_unread, 'data') and res_unread.data:
+                for row in res_unread.data:
+                    s_id = row.get('sender_id')
+                    if s_id:
+                        unread_counts[s_id] = unread_counts.get(s_id, 0) + 1
+        except Exception as e:
+            print("Ошибка подсчета непрочитанных в get_messages:", e)
 
-        return jsonify({'messages': messages, 'unread_counts': unread_counts, 'current_user_id': current_user_id})
+        return jsonify({
+            'messages': messages, 
+            'unread_counts': unread_counts, 
+            'current_user_id': current_user_id
+        })
     except Exception as e:
-        print("Ошибка в /get_messages:", str(e))
+        print("КРИТИЧЕСКАЯ ОШИБКА в /get_messages:", str(e))
         return jsonify({'error': str(e)}), 500
 
 @app.route('/send', methods=['POST'])
