@@ -11,7 +11,7 @@
         <div class="sidebar">
             <div class="profile-header">
                 <div>
-                        <h3 id="myUsername">Гость</h3>
+                    <h3 id="myUsername">{{ current_user.username if current_user is defined else 'Гость' }}</h3>
                     <p id="myStatusText" style="font-size: 12px; margin: 2px 0 0; opacity: 0.8;">{{ current_user.status }}</p>
                 </div>
                 <div style="display: flex; gap: 10px;">
