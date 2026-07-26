@@ -121,6 +121,34 @@
             width: 300px;
             color: white;
         }
+        .user-item {
+            padding: 12px 15px;
+            border-bottom: 1px solid #2d2d2d;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .user-item:hover {
+            background: #2a2d2e;
+        }
+        .user-item.active {
+            background: #37373d;
+        }
+        .message {
+            max-width: 70%;
+            padding: 10px 14px;
+            border-radius: 8px;
+            word-break: break-word;
+        }
+        .message.incoming {
+            background: #262626;
+            align-self: flex-start;
+        }
+        .message.outgoing {
+            background: #005c8a;
+            align-self: flex-end;
+        }
     </style>
 </head>
 <body>
@@ -179,7 +207,76 @@
         </div>
     </div>
 
-    <!-- Скрипт -->
-    <script src="{{ url_for('static', filename='script.js') }}"></script>
+    <!-- Встроенный JavaScript для управления интерфейсом -->
+    <script>
+        let notificationVolume = 0.5;
+
+        function updateVolume(val) {
+            notificationVolume = val / 100;
+            document.getElementById('volVal').innerText = val;
+        }
+
+        function toggleProfileModal() {
+            const modal = document.getElementById('profileModal');
+            modal.style.display = modal.style.display === 'none' ? 'flex' : 'none';
+        }
+
+        function saveProfile() {
+            const newStatus = document.getElementById('newStatusInput').value;
+            document.getElementById('myStatusText').innerText = newStatus;
+            toggleProfileModal();
+            // Здесь будет отправка статуса в базу Supabase
+        }
+
+        function toggleBlockUser() {
+            alert('Функция блокировки будет связана с Supabase');
+        }
+
+        function handleKeyPress(event) {
+            if (event.key === 'Enter') {
+                sendMessage();
+            }
+        }
+
+        function sendMessage() {
+            const input = document.getElementById('messageInput');
+            const text = input.value.trim();
+            if (!text) return;
+
+            const box = document.getElementById('messagesBox');
+            const msgDiv = document.createElement('div');
+            msgDiv.className = 'message outgoing';
+            msgDiv.innerText = text;
+            box.appendChild(msgDiv);
+
+            input.value = '';
+            box.scrollTop = box.scrollHeight;
+            // Здесь будет отправка сообщения в Supabase
+        }
+
+        // Пример загрузки списка пользователей для интерфейса
+        window.onload = function() {
+            const userList = document.getElementById('userList');
+            // Тестовые заглушки пользователей до подключения бэкенда базы данных
+            const dummyUsers = [
+                { id: 1, username: 'Александр', status: 'В сети' },
+                { id: 2, username: 'Мария', status: 'Отошла' }
+            ];
+
+            dummyUsers.forEach(user => {
+                const item = document.createElement('div');
+                item.className = 'user-item';
+                item.innerHTML = `<span>${user.username}</span><span style="font-size:10px; color:gray;">${user.status}</span>`;
+                item.onclick = function() {
+                    document.querySelectorAll('.user-item').forEach(el => el.classList.remove('active'));
+                    item.classList.add('active');
+                    document.getElementById('activeChatName').innerText = user.username;
+                    document.getElementById('activeUserStatus').innerText = user.status;
+                    document.getElementById('chatArea').style.display = 'flex';
+                };
+                userList.appendChild(item);
+            });
+        };
+    </script>
 </body>
 </html>
