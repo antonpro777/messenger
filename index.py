@@ -5,7 +5,7 @@ import psycopg2
 from psycopg2.extras import RealDictCursor
 
 app = Flask(__name__)
-app.secret_key = os.environ.get('SECRET_KEY', 'super_secret_key_for_dev')
+app.secret_key = os.environ.get('SUPABASE_KEY', 'super_secret_key_for_dev')
 
 # Функция подключения к Supabase PostgreSQL
 def get_db_connection():
