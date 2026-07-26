@@ -1,7 +1,19 @@
 {
+  "version": 2,
+  "builds": [
+    {
+      "src": "index.py",
+      "use": "@vercel/python"
+    }
+  ],
   "routes": [
-    { "handle": "filesystem" },
-    { "src": "/static/(.*)", "dest": "/static/$1" },
-    { "src": "/(.*)", "dest": "index.py" }
+    {
+      "src": "/static/(.*)",
+      "dest": "/static/$1"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "index.py"
+    }
   ]
 }
