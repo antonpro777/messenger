@@ -26,8 +26,9 @@ class User(db.Model):
 # Главная страница мессенджера (отдает графический интерфейс)
 @app.route('/')
 def index():
-    # Убедитесь, что у вас в проекте создана папка templates с файлом index.html
-    return render_template('index.html')
-
+    # Передаем безопасный словарь, чтобы шаблон не падал
+    dummy_user = {'username': 'Гость'}
+    return render_template('index.html', current_user=dummy_user)
+    
 if __name__ == '__main__':
     app.run(debug=True)
