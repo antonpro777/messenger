@@ -9,7 +9,7 @@ app.secret_key = os.environ.get('SECRET_KEY', 'super_secret_key_for_dev')
 
 # Функция подключения к Supabase PostgreSQL
 def get_db_connection():
-    db_url = os.environ.get('SUPABASE_DB_URL')
+    db_url = os.environ.get('SUPABASE_URL')
     if not db_url:
         raise ValueError("Переменная окружения SUPABASE_DB_URL не задана!")
     conn = psycopg2.connect(db_url, cursor_factory=RealDictCursor)
