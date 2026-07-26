@@ -1,121 +1,88 @@
-import os
 from flask import Flask, render_template, request, redirect, url_for, session
 from werkzeug.security import generate_password_hash, check_password_hash
-from supabase import create_client, Client
+import os
+import psycopg2
+from psycopg2.extras import RealDictCursor
 
 app = Flask(__name__)
-# Задайте секретный ключ для сессий (на Vercel подтянется из переменных окружения, либо дефолтный для локальной разработки)
-app.secret_key = os.environ.get('SECRET_KEY', 'super-secret-messenger-key-change-it')
+app.secret_key = os.environ.get('SECRET_KEY', 'super_secret_key_for_dev')
 
-# Подключение к Supabase (убедитесь, что переменные заданы в окружении или пропишите ключи напрямую)
-SUPABASE_URL = os.environ.get('SUPABASE_URL', 'ВАШ_SUPABASE_URL')
-SUPABASE_KEY = os.environ.get('SUPABASE_KEY', 'ВАШ_SUPABASE_ANON_KEY')
-
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+# Функция подключения к базе данных Supabase (PostgreSQL)
+def get_db_connection():
+    conn = psycopg2.connect(
+        os.environ.get('SUPABASE_DB_URL'), # Убедитесь, что переменная окружения задана в Vercel
+        cursor_factory=RealDictCursor
+    )
+    return conn
 
 @app.route('/')
 def index():
-    # Проверяем, есть ли пользователь в сессии, и достаем его имя
-    username = session.get('user') # или как вы сохраняете его при логине
+    # Получаем данные пользователя из сессии
+    current_user = session.get('user')
     
-    # Получаем сообщения из базы...
-    messages = [...] # ваш текущий код загрузки сообщений
-    
-    return render_template('index.html', username=username, messages=messages)
-    
-    # Загружаем сообщения (если таблица messages существует)
     messages = []
     try:
-        response = supabase.table('messages').select('*').order('created_at', desc=False).execute()
-        if response.data:
-            messages = response.data
+        conn = get_db_connection()
+        cur = conn.cursor()
+        # Загружаем сообщения (пример)
+        cur.execute("SELECT * FROM messages ORDER BY id DESC LIMIT 50;")
+        messages = cur.fetchall()
+        cur.close()
+        conn.close()
     except Exception as e:
-        print(f"Ошибка загрузки сообщений: {e}")
-        
-    return render_template('index.html', username=session['user'], messages=messages)
+        print(f"Database error: {e}")
 
-@app.route('/send', methods=['POST'])
-def send_message():
-    if 'user' not in session:
-        return redirect(url_for('login'))
-        
-    text = request.form.get('text', '').strip()
-    if text:
-        try:
-            supabase.table('messages').insert({
-                'username': session['user'],
-                'text': text
-            }).execute()
-        except Exception as e:
-            print(f"Ошибка отправки сообщения: {e}")
-            
-    return redirect(url_for('index'))
-
-@app.route('/login', methods=['GET', 'POST'])
-def login():
-    # Если уже авторизован — кидаем на главную
-    if 'user' in session:
-        return redirect(url_for('index'))
-        
-    error = None
-    if request.method == 'POST':
-        username = request.form.get('username', '').strip()
-        password = request.form.get('password', '').strip()
-        
-        if not username or not password:
-            error = 'Пожалуйста, заполните все поля'
-        else:
-            try:
-                response = supabase.table('users').select('*').eq('username', username).execute()
-                users = response.data
-                
-                # Проверяем наличие пользователя и совпадение хэша пароля
-                if users and 'password_hash' in users[0] and check_password_hash(users[0]['password_hash'], password):
-                    session['user'] = username
-                    return redirect(url_for('index'))
-                else:
-                    error = 'Неверное имя пользователя или пароль'
-            except Exception as e:
-                print(f"Ошибка входа: {e}")
-                error = 'Ошибка подключения к базе данных'
-                
-    return render_template('login.html', error=error)
+    return render_template('index.html', current_user=current_user, messages=messages)
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
-    # Если уже авторизован — кидаем на главную
-    if 'user' in session:
-        return redirect(url_for('index'))
-        
-    error = None
     if request.method == 'POST':
-        username = request.form.get('username', '').strip()
-        password = request.form.get('password', '').strip()
+        name = request.form.get('name')
+        username = request.form.get('username')
+        password = request.form.get('password')
         
-        if not username or not password:
-            error = 'Пожалуйста, заполните все поля'
-        else:
-            try:
-                # Проверяем, занято ли имя
-                existing = supabase.table('users').select('*').eq('username', username).execute()
-                if existing.data:
-                    error = 'Такое имя пользователя уже занято'
-                else:
-                    # Создаем хэш пароля и сохраняем в базу
-                    hashed_password = generate_password_hash(password)
-                    supabase.table('users').insert({
-                        'username': username,
-                        'password_hash': hashed_password
-                    }).execute()
-                    
-                    # Сразу логиним пользователя
-                    session['user'] = username
-                    return redirect(url_for('index'))
-            except Exception as e:
-                print(f"Ошибка регистрации: {e}")
-                error = 'Ошибка при регистрации. Проверьте структуру базы данных.'
-                
-    return render_template('register.html', error=error)
+        password_hash = generate_password_hash(password)
+        
+        try:
+            conn = get_db_connection()
+            cur = conn.cursor()
+            cur.execute(
+                "INSERT INTO users (name, username, password_hash) VALUES (%s, %s, %s)",
+                (name, username, password_hash)
+            )
+            conn.commit()
+            cur.close()
+            conn.close()
+            return redirect(url_for('login'))
+        except Exception as e:
+            return f"Ошибка при регистрации: {e}"
+            
+    return render_template('register.html')
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        username = request.form.get('username')
+        password = request.form.get('password')
+        
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM users WHERE username = %s", (username,))
+        user = cur.fetchone()
+        cur.close()
+        conn.close()
+        
+        if user and check_password_hash(user['password_hash'], password):
+            # Сохраняем данные пользователя в сессию для раздельного вывода имени и ника
+            session['user'] = {
+                'id': user['id'],
+                'name': user['name'],
+                'username': user['username']
+            }
+            return redirect(url_for('index'))
+        return "Неверный логин или пароль"
+        
+    return render_template('login.html')
 
 @app.route('/logout')
 def logout():
