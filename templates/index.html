@@ -92,18 +92,17 @@
                 {% endfor %}
             </div>
 
-            <form action="/send" method="POST" class="chat-form" id="chatForm">
-                <input type="hidden" name="recipient_id" value="{{ active_recipient.id }}">
+            <form id="chatForm" class="chat-form">
+                <input type="hidden" id="recipientId" value="{{ active_recipient.id }}">
                 <button type="button" class="emoji-btn" onclick="toggleEmojiPicker(event)">😊</button>
                 
-                <!-- Панель эмодзи -->
                 <div class="emoji-picker" id="emojiPicker">
                     <span onclick="addEmoji('😀')">😀</span><span onclick="addEmoji('😂')">😂</span><span onclick="addEmoji('😊')">😊</span><span onclick="addEmoji('😍')">😍</span><span onclick="addEmoji('👍')">👍</span><span onclick="addEmoji('🔥')">🔥</span>
                     <span onclick="addEmoji('❤️')">❤️</span><span onclick="addEmoji('🎉')">🎉</span><span onclick="addEmoji('😎')">😎</span><span onclick="addEmoji('😢')">😢</span><span onclick="addEmoji('💩')">💩</span><span onclick="addEmoji('🚀')">🚀</span>
                     <span onclick="addEmoji('✨')">✨</span><span onclick="addEmoji('🙏')">🙏</span><span onclick="addEmoji('👀')">👀</span><span onclick="addEmoji('💡')">💡</span><span onclick="addEmoji('🎉')">🎉</span><span onclick="addEmoji('💯')">💯</span>
                 </div>
 
-                <input type="text" name="content" id="messageInput" placeholder="Введите сообщение..." required autocomplete="off" autofocus>
+                <input type="text" id="messageInput" placeholder="Введите сообщение..." required autocomplete="off" autofocus>
                 <button type="submit">Отправить</button>
             </form>
         {% else %}
@@ -119,7 +118,6 @@
             msgBox.scrollTop = msgBox.scrollHeight;
         }
 
-        // Выбор эмодзи
         function toggleEmojiPicker(e) {
             e.stopPropagation();
             let picker = document.getElementById('emojiPicker');
@@ -133,7 +131,6 @@
             document.getElementById('emojiPicker').style.display = 'none';
         }
 
-        // Закрывать панель эмодзи при клике вне её
         window.onclick = function(event) {
             let picker = document.getElementById('emojiPicker');
             if (picker && !event.target.classList.contains('emoji-btn') && !picker.contains(event.target)) {
@@ -141,7 +138,6 @@
             }
         }
 
-        // Живой поиск пользователей
         function filterUsers() {
             let input = document.getElementById('searchUserInput').value.toLowerCase();
             let container = document.getElementById('usersListContainer');
@@ -157,10 +153,41 @@
             }
         }
 
-        // Автоматическое обновление сообщений и счетчиков без перезагрузки страницы (каждые 3 сек)
+        // Отправка сообщения без перезагрузки страницы (AJAX)
+        const chatForm = document.getElementById('chatForm');
+        if (chatForm) {
+            chatForm.addEventListener('submit', async function(e) {
+                e.preventDefault();
+                let input = document.getElementById('messageInput');
+                let recipientId = document.getElementById('recipientId').value;
+                let content = input.value.trim();
+
+                if (!content) return;
+
+                let formData = new URLSearchParams();
+                formData.append('recipient_id', recipientId);
+                formData.append('content', content);
+
+                try {
+                    let response = await fetch('/send', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    if (response.ok) {
+                        input.value = '';
+                        // Сразу вызываем обновление чата, чтобы показать отправленное сообщение
+                        updateChat();
+                    }
+                } catch (err) {
+                    console.error("Ошибка отправки:", err);
+                }
+            });
+        }
+
+        // Автоматическое обновление сообщений и счетчиков (каждые 3 сек)
         const activeRecipientId = "{{ active_recipient.id if active_recipient else '' }}";
         
-        setInterval(async () => {
+        async function updateChat() {
             try {
                 let url = '/get_messages';
                 if (activeRecipientId) url += `?to=${activeRecipientId}`;
@@ -169,7 +196,6 @@
                 if (!response.ok) return;
                 let data = await response.json();
 
-                // Обновляем счетчики непрочитанных в сайдбаре
                 for (let userId in data.unread_counts) {
                     let badge = document.getElementById(`badge-${userId}`);
                     if (badge) {
@@ -179,7 +205,6 @@
                     }
                 }
 
-                // Если открыт чат, обновляем ленту сообщений
                 if (activeRecipientId && msgBox) {
                     let isAtBottom = msgBox.scrollHeight - msgBox.scrollTop <= msgBox.clientHeight + 50;
                     
@@ -199,7 +224,9 @@
             } catch (err) {
                 console.error("Ошибка автообновления:", err);
             }
-        }, 3000);
+        }
+
+        setInterval(updateChat, 3000);
 
         function escapeHtml(text) {
             return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
