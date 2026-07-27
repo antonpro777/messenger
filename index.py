@@ -4,6 +4,9 @@ import os
 import psycopg2
 from psycopg2.extras import RealDictCursor
 
+from dotenv import load_dotenv
+load_dotenv()
+
 app = Flask(__name__)
 app.secret_key = os.environ.get('SUPABASE_DB_URL', 'super_secret_key_for_dev')
 
