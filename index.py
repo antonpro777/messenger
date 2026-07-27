@@ -7,16 +7,10 @@ from psycopg2.extras import RealDictCursor
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'super_secret_key_for_dev')
 
-# Единая и рабочая функция подключения к Supabase PostgreSQL
+# Функция прямого подключения к Supabase PostgreSQL
 def get_db_connection():
-    # Если переменная окружения на хостинге не подтянется, 
-    # сюда можно напрямую вставить вашу строку подключения в кавычках:
-   DATABASE_URL="postgresql://postgres.prelemswcdgnxyajajbs:292997746Raa@aws-0-eu-west-3.pooler.supabase.com:6543/postgres?pgbouncer=true"
-    db_url = os.environ.get('SUPABASE_DB_URL')
+    db_url = "postgresql://postgres.prelemswcdgnxyajajbs:292997746Raa@aws-0-eu-west-3.pooler.supabase.com:6543/postgres?pgbouncer=true"
     
-    if not db_url:
-        raise ValueError("Переменная окружения SUPABASE_DB_URL не задана!")
-        
     conn = psycopg2.connect(db_url, cursor_factory=RealDictCursor)
     return conn
 
