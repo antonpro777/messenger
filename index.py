@@ -11,7 +11,7 @@ app.secret_key = os.environ.get('SECRET_KEY', 'super_secret_key_for_dev')
 def get_db_connection():
     # Если переменная окружения на хостинге не подтянется, 
     # сюда можно напрямую вставить вашу строку подключения в кавычках:
-    # "postgresql://postgres.проект:пароль@aws-0-eu-central-1.pooler.supabase.com:5432/postgres"
+    "postgresql://postgres:292997746Raa@db.prelemswcdgnxyajajbs.supabase.co:5432/postgres"
     db_url = os.environ.get('SUPABASE_DB_URL')
     
     if not db_url:
