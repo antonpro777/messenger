@@ -6,7 +6,7 @@ from psycopg2.extras import RealDictCursor
 
 # Прямое подключение без зависимости от переменных окружения Vercel
 def get_db_connection():
-    db_url = "postgresql://postgres.ваш_проект:ваш_пароль@aws-0-eu-central-1.pooler.supabase.com:5432/postgres"
+    db_url = "postgresql://postgres:292997746Raa@db.prelemswcdgnxyajajbs.supabase.co:5432/postgres"
     conn = psycopg2.connect(db_url, cursor_factory=RealDictCursor)
     return conn
 
