@@ -4,15 +4,15 @@ import os
 import psycopg2
 from psycopg2.extras import RealDictCursor
 
-# Прямое подключение без зависимости от переменных окружения Vercel
+app = Flask(__name__)
+app.secret_key = os.environ.get('SECRET_KEY', 'super_secret_key_for_dev')
+
+# Единая и рабочая функция подключения к Supabase PostgreSQL
 def get_db_connection():
-    # Пробуем взять из окружения
+    # Если переменная окружения на хостинге не подтянется, 
+    # сюда можно напрямую вставить вашу строку подключения в кавычках:
+    # "postgresql://postgres.проект:пароль@aws-0-eu-central-1.pooler.supabase.com:5432/postgres"
     db_url = os.environ.get('SUPABASE_DB_URL')
-    
-    # ЕСЛИ ВДРУГ НЕ НАШЛОСЬ, закомментируйте строку ниже и вставьте свою ссылку прямо в кавычки:
-    # db_url = "postgresql://postgres.ваш_проект:пароль@aws-0-eu-central-1.pooler.supabase.com:5432/postgres"
-    
-    print(f"DEBUG: Проверка переменной DB_URL -> {'Найдена (длина ' + str(len(db_url)) + ')' if db_url else 'ОТСУТСТВУЕТ!'}")
     
     if not db_url:
         raise ValueError("Переменная окружения SUPABASE_DB_URL не задана!")
@@ -20,20 +20,8 @@ def get_db_connection():
     conn = psycopg2.connect(db_url, cursor_factory=RealDictCursor)
     return conn
 
-app = Flask(__name__)
-app.secret_key = os.environ.get('SUPABASE_DB_URL', 'super_secret_key_for_dev')
-
-# Функция подключения к Supabase PostgreSQL
-def get_db_connection():
-    db_url = os.environ.get('SUPABASE_URL')
-    if not db_url:
-        raise ValueError("Переменная окружения SUPABASE_DB_URL не задана!")
-    conn = psycopg2.connect(db_url, cursor_factory=RealDictCursor)
-    return conn
-
 @app.route('/')
 def index():
-    # Проверяем, авторизован ли пользователь
     current_user = session.get('user')
     if not current_user:
         return redirect(url_for('login'))
@@ -41,7 +29,6 @@ def index():
     conn = get_db_connection()
     cur = conn.cursor()
 
-    # Получаем список всех пользователей для сайдбара
     cur.execute("SELECT id, username, status FROM users WHERE id != %s", (current_user['id'],))
     users = cur.fetchall()
 
@@ -51,12 +38,10 @@ def index():
     unread_counts = {}
 
     if active_recipient_id:
-        # Получаем данные выбранного собеседника
         cur.execute("SELECT id, username, status FROM users WHERE id = %s", (active_recipient_id,))
         active_recipient = cur.fetchone()
 
         if active_recipient:
-            # Загружаем сообщения между текущим пользователем и собеседником
             cur.execute("""
                 SELECT * FROM messages 
                 WHERE (sender_id = %s AND recipient_id = %s) 
@@ -88,7 +73,6 @@ def login():
         cur.execute("SELECT * FROM users WHERE username = %s", (username,))
         user = cur.fetchone()
         
-        # Обновляем статус на "В сети" при входе
         if user:
             cur.execute("UPDATE users SET status = 'В сети' WHERE id = %s", (user['id'],))
             conn.commit()
@@ -97,7 +81,6 @@ def login():
         conn.close()
 
         if user and check_password_hash(user['password_hash'], password):
-            # Сохраняем полный словарь профиля в сессию
             session['user'] = {
                 'id': user['id'],
                 'name': user['name'],
