@@ -6,7 +6,17 @@ from psycopg2.extras import RealDictCursor
 
 # Прямое подключение без зависимости от переменных окружения Vercel
 def get_db_connection():
-    db_url = "postgresql://postgres:292997746Raa@db.prelemswcdgnxyajajbs.supabase.co:5432/postgres"
+    # Пробуем взять из окружения
+    db_url = os.environ.get('SUPABASE_DB_URL')
+    
+    # ЕСЛИ ВДРУГ НЕ НАШЛОСЬ, закомментируйте строку ниже и вставьте свою ссылку прямо в кавычки:
+    # db_url = "postgresql://postgres.ваш_проект:пароль@aws-0-eu-central-1.pooler.supabase.com:5432/postgres"
+    
+    print(f"DEBUG: Проверка переменной DB_URL -> {'Найдена (длина ' + str(len(db_url)) + ')' if db_url else 'ОТСУТСТВУЕТ!'}")
+    
+    if not db_url:
+        raise ValueError("Переменная окружения SUPABASE_DB_URL не задана!")
+        
     conn = psycopg2.connect(db_url, cursor_factory=RealDictCursor)
     return conn
 
