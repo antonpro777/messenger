@@ -30,6 +30,18 @@ def index():
         current_user['name'] = db_user['name']
         current_user['bio'] = db_user['bio']
 
+    # Обновляем свой собственный статус на 'В сети' при открытии/обновлении главной страницы
+    cur.execute("UPDATE users SET status = 'В сети', last_active = CURRENT_TIMESTAMP WHERE id = %s", (current_user['id'],))
+    conn.commit()
+
+    # Если последняя активность была больше 15 секунд назад, автоматически меняем статус пользователя на 'Не в сети' в базе
+    cur.execute("""
+        UPDATE users 
+        SET status = 'Не в сети' 
+        WHERE status = 'В сети' AND last_active < NOW() - INTERVAL '15 seconds'
+    """)
+    conn.commit()
+
     # Список чатов: только те, с кем есть переписка и кто не в блоке
     cur.execute("""
         SELECT DISTINCT u.id, u.username, u.name, u.status 
@@ -75,6 +87,34 @@ def index():
         messages=messages,
         is_blocked=is_blocked
     )
+
+@app.route('/ping', methods=['POST'])
+def ping():
+    current_user = session.get('user')
+    if not current_user:
+        return "Unauthorized", 401
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("UPDATE users SET last_active = CURRENT_TIMESTAMP, status = 'В сети' WHERE id = %s", (current_user['id'],))
+    conn.commit()
+    cur.close()
+    conn.close()
+    return "OK", 200
+
+@app.route('/offline', methods=['POST'])
+def go_offline():
+    current_user = session.get('user')
+    if not current_user:
+        return "Unauthorized", 401
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("UPDATE users SET status = 'Не в сети' WHERE id = %s", (current_user['id'],))
+    conn.commit()
+    cur.close()
+    conn.close()
+    return "OK", 200
 
 @app.route('/search')
 def search_users():
@@ -178,7 +218,7 @@ def login():
         user = cur.fetchone()
         
         if user:
-            cur.execute("UPDATE users SET status = 'В сети' WHERE id = %s", (user['id'],))
+            cur.execute("UPDATE users SET status = 'В сети', last_active = CURRENT_TIMESTAMP WHERE id = %s", (user['id'],))
             conn.commit()
 
         cur.close()
@@ -212,7 +252,7 @@ def register():
             conn = get_db_connection()
             cur = conn.cursor()
             cur.execute(
-                "INSERT INTO users (name, username, password_hash, status, balance, bio) VALUES (%s, %s, %s, 'В сети', 0, '')",
+                "INSERT INTO users (name, username, password_hash, status, balance, bio, last_active) VALUES (%s, %s, %s, 'В сети', 0, '', CURRENT_TIMESTAMP)",
                 (name, username, password_hash)
             )
             conn.commit()
