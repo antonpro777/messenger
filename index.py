@@ -22,30 +22,40 @@ def index():
     conn = get_db_connection()
     cur = conn.cursor()
 
-    # Получаем актуальный баланс
-    cur.execute("SELECT balance FROM users WHERE id = %s", (current_user['id'],))
+    # Актуализируем баланс и данные текущего пользователя
+    cur.execute("SELECT balance, name, bio FROM users WHERE id = %s", (current_user['id'],))
     db_user = cur.fetchone()
     if db_user:
         current_user['balance'] = db_user['balance']
+        current_user['name'] = db_user['name']
+        current_user['bio'] = db_user['bio']
 
-    # Показываем в списке чатов ТОЛЬКО те контакты, с которыми уже есть переписка
+    # Список чатов: только те, с кем есть переписка и кто не в блоке
     cur.execute("""
         SELECT DISTINCT u.id, u.username, u.name, u.status 
         FROM users u
         JOIN messages m ON (u.id = m.sender_id OR u.id = m.recipient_id)
         WHERE (m.sender_id = %s OR m.recipient_id = %s) AND u.id != %s
-    """, (current_user['id'], current_user['id'], current_user['id']))
+          AND u.id NOT IN (SELECT blocked_id FROM blocks WHERE blocker_id = %s)
+          AND %s NOT IN (SELECT blocked_id FROM blocks WHERE blocker_id = u.id)
+    """, (current_user['id'], current_user['id'], current_user['id'], current_user['id'], current_user['id']))
     users = cur.fetchall()
 
     active_recipient_id = request.args.get('to')
     active_recipient = None
     messages = []
+    is_blocked = False
 
     if active_recipient_id:
-        cur.execute("SELECT id, username, name, status FROM users WHERE id = %s", (active_recipient_id,))
+        cur.execute("SELECT id, username, name, status, bio FROM users WHERE id = %s", (active_recipient_id,))
         active_recipient = cur.fetchone()
 
         if active_recipient:
+            # Проверяем, заблокирован ли пользователь
+            cur.execute("SELECT * FROM blocks WHERE blocker_id = %s AND blocked_id = %s", (current_user['id'], active_recipient_id))
+            if cur.fetchone():
+                is_blocked = True
+
             cur.execute("""
                 SELECT * FROM messages 
                 WHERE (sender_id = %s AND recipient_id = %s) 
@@ -62,8 +72,99 @@ def index():
         current_user=current_user,
         users=users,
         active_recipient=active_recipient,
-        messages=messages
+        messages=messages,
+        is_blocked=is_blocked
     )
+
+@app.route('/search')
+def search_users():
+    current_user = session.get('user')
+    if not current_user:
+        return redirect(url_for('login'))
+
+    query = request.args.get('q', '').strip()
+    users = []
+
+    if query:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT id, username, name, status, bio FROM users 
+            WHERE (username ILIKE %s OR name ILIKE %s) AND id != %s
+        """, (f"%{query}%", f"%{query}%", current_user['id']))
+        users = cur.fetchall()
+        cur.close()
+        conn.close()
+
+    return render_template('search.html', current_user=current_user, users=users, query=query)
+
+@app.route('/profile/<int:user_id>')
+def view_profile(user_id):
+    current_user = session.get('user')
+    if not current_user:
+        return redirect(url_for('login'))
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT id, username, name, status, bio FROM users WHERE id = %s", (user_id,))
+    profile_user = cur.fetchone()
+
+    cur.execute("SELECT * FROM blocks WHERE blocker_id = %s AND blocked_id = %s", (current_user['id'], user_id))
+    is_blocked = cur.fetchone() is not None
+
+    cur.close()
+    conn.close()
+
+    if not profile_user:
+        return "Пользователь не найден", 404
+
+    return render_template('profile.html', current_user=current_user, profile_user=profile_user, is_blocked=is_blocked)
+
+@app.route('/settings', methods=['GET', 'POST'])
+def settings():
+    current_user = session.get('user')
+    if not current_user:
+        return redirect(url_for('login'))
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    if request.method == 'POST':
+        new_name = request.form.get('name')
+        new_bio = request.form.get('bio')
+
+        cur.execute("UPDATE users SET name = %s, bio = %s WHERE id = %s", (new_name, new_bio, current_user['id']))
+        conn.commit()
+        session['user']['name'] = new_name
+        current_user['bio'] = new_bio
+
+    cur.execute("SELECT name, username, bio, balance FROM users WHERE id = %s", (current_user['id'],))
+    user_data = cur.fetchone()
+    cur.close()
+    conn.close()
+
+    return render_template('settings.html', current_user=current_user, user_data=user_data)
+
+@app.route('/block/<int:user_id>', methods=['POST'])
+def toggle_block(user_id):
+    current_user = session.get('user')
+    if not current_user:
+        return "Unauthorized", 401
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+    
+    cur.execute("SELECT * FROM blocks WHERE blocker_id = %s AND blocked_id = %s", (current_user['id'], user_id))
+    if cur.fetchone():
+        cur.execute("DELETE FROM blocks WHERE blocker_id = %s AND blocked_id = %s", (current_user['id'], user_id))
+    else:
+        cur.execute("INSERT INTO blocks (blocker_id, blocked_id) VALUES (%s, %s)", (current_user['id'], user_id))
+    
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    return redirect(url_for('view_profile', user_id=user_id))
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -102,7 +203,6 @@ def register():
         username = request.form.get('username')
         password = request.form.get('password')
 
-        # Проверка юзернейма: только латиница, цифры и подчеркивания
         if not re.match("^[A-Za-z0-9_]+$", username):
             return "Ошибка: Юзернейм должен содержать только латинские буквы, цифры и знак подчеркивания.", 400
 
@@ -112,7 +212,7 @@ def register():
             conn = get_db_connection()
             cur = conn.cursor()
             cur.execute(
-                "INSERT INTO users (name, username, password_hash, status, balance) VALUES (%s, %s, %s, 'В сети', 0)",
+                "INSERT INTO users (name, username, password_hash, status, balance, bio) VALUES (%s, %s, %s, 'В сети', 0, '')",
                 (name, username, password_hash)
             )
             conn.commit()
@@ -138,6 +238,15 @@ def send_message():
 
     conn = get_db_connection()
     cur = conn.cursor()
+    
+    # Проверка на блокировку
+    cur.execute("SELECT * FROM blocks WHERE (blocker_id = %s AND blocked_id = %s) OR (blocker_id = %s AND blocked_id = %s)", 
+                (current_user['id'], recipient_id, recipient_id, current_user['id']))
+    if cur.fetchone():
+        cur.close()
+        conn.close()
+        return "Blocked", 403
+
     cur.execute(
         "INSERT INTO messages (sender_id, recipient_id, content) VALUES (%s, %s, %s)",
         (current_user['id'], recipient_id, content)
