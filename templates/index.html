@@ -106,6 +106,7 @@
             display: flex;
             flex-direction: column;
             background: var(--chat-bg);
+            min-width: 0; /* Предотвращает раздувание флекса */
         }
 
         .chat-header {
@@ -132,6 +133,7 @@
             border-radius: 12px;
             font-size: 14px;
             line-height: 1.4;
+            word-break: break-word;
         }
 
         .message.incoming {
@@ -145,17 +147,22 @@
             align-self: flex-end;
         }
 
+        /* Исправленная панель ввода, чтобы не выходила за границы */
         .chat-input-box {
-            padding: 12px;
+            padding: 10px;
             background: var(--header-bg);
             border-top: 1px solid var(--sidebar-border);
             display: flex;
-            gap: 10px;
+            align-items: center;
+            gap: 8px;
+            width: 100%;
             position: relative;
+            flex-shrink: 0;
         }
 
         .chat-input-box input {
             flex: 1;
+            min-width: 0; /* Важно для корректного сжатия на узких экранах */
             padding: 10px 14px;
             border: 1px solid var(--sidebar-border);
             border-radius: 20px;
@@ -165,17 +172,18 @@
             color: var(--text-color);
         }
 
-        .chat-input-box button {
-            padding: 10px 20px;
+        .chat-input-box button[type="submit"] {
+            padding: 10px 16px;
             background: #0088cc;
             color: #ffffff;
             border: none;
             border-radius: 20px;
             cursor: pointer;
             font-weight: 500;
+            flex-shrink: 0;
         }
 
-        .chat-input-box button:hover {
+        .chat-input-box button[type="submit"]:hover {
             background: #0077b3;
         }
 
@@ -184,14 +192,14 @@
             border: none;
             font-size: 20px;
             cursor: pointer;
-            padding: 0 5px;
+            padding: 0 4px;
+            flex-shrink: 0;
         }
 
-        /* Панель эмодзи */
         .emoji-picker {
             position: absolute;
             bottom: 60px;
-            left: 12px;
+            left: 10px;
             background: var(--header-bg);
             border: 1px solid var(--sidebar-border);
             padding: 10px;
@@ -199,7 +207,8 @@
             display: none;
             grid-template-columns: repeat(5, 1fr);
             gap: 5px;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+            z-index: 10;
         }
 
         .emoji-picker span {
@@ -278,7 +287,6 @@
                 </div>
             </div>
 
-            <!-- Поиск по пользователям -->
             <div class="sidebar-search">
                 <input type="text" id="searchInput" placeholder="Поиск пользователей..." onkeyup="filterUsers()">
             </div>
@@ -318,13 +326,11 @@
                     {% endfor %}
                 </div>
 
-                <!-- Форма отправки сообщений через JS, без перехода на страницу ОК -->
                 <form class="chat-input-box" id="messageForm" onsubmit="sendMessage(event)">
                     <input type="hidden" id="recipientId" value="{{ active_recipient.id }}">
                     
                     <button type="button" class="emoji-btn" onclick="toggleEmojiPicker()">😀</button>
                     
-                    <!-- Выпадающий блок с эмодзи -->
                     <div class="emoji-picker" id="emojiPicker">
                         <span onclick="addEmoji('😊')">😊</span>
                         <span onclick="addEmoji('😂')">😂</span>
@@ -350,13 +356,25 @@
     </div>
 
     <script>
-        // Прокрутка чата вниз
-        const box = document.getElementById('messagesBox');
-        if (box) {
-            box.scrollTop = box.scrollHeight;
+        // Сохранение и восстановление темы через localStorage
+        document.addEventListener("DOMContentLoaded", () => {
+            const savedTheme = localStorage.getItem('theme') || 'light';
+            document.body.setAttribute('data-theme', savedTheme);
+
+            const box = document.getElementById('messagesBox');
+            if (box) {
+                box.scrollTop = box.scrollHeight;
+            }
+        });
+
+        function toggleTheme() {
+            const body = document.body;
+            let currentTheme = body.getAttribute('data-theme');
+            let newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            body.setAttribute('data-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
         }
 
-        // Поиск по пользователям
         function filterUsers() {
             let input = document.getElementById('searchInput').value.toLowerCase();
             let items = document.getElementsByClassName('user-item');
@@ -370,17 +388,6 @@
             }
         }
 
-        // Переключение тем (Светлая / Темная)
-        function toggleTheme() {
-            const body = document.body;
-            if (body.getAttribute('data-theme') === 'dark') {
-                body.setAttribute('data-theme', 'light');
-            } else {
-                body.setAttribute('data-theme', 'dark');
-            }
-        }
-
-        // Управление панелью эмодзи
         function toggleEmojiPicker() {
             const picker = document.getElementById('emojiPicker');
             picker.style.display = picker.style.display === 'grid' ? 'none' : 'grid';
@@ -393,7 +400,6 @@
             input.focus();
         }
 
-        // Отправка сообщения без перезагрузки страницы
         function sendMessage(event) {
             event.preventDefault();
             const recipientId = document.getElementById('recipientId').value;
@@ -414,14 +420,12 @@
                 body: formData
             }).then(response => {
                 if (response.ok) {
-                    // Создаем элемент сообщения и добавляем в чат
                     const messagesBox = document.getElementById('messagesBox');
                     const msgDiv = document.createElement('div');
                     msgDiv.className = 'message outgoing';
                     msgDiv.textContent = content;
                     messagesBox.appendChild(msgDiv);
                     
-                    // Очищаем поле ввода и скроллим вниз
                     input.value = '';
                     messagesBox.scrollTop = messagesBox.scrollHeight;
                 }
