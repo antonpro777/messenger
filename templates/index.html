@@ -443,6 +443,20 @@
                 }
             });
         }
+        // Отправляем пинг каждые 10 секунд, пока вкладка открыта
+setInterval(() => {
+    if (document.visibilityState === 'visible') {
+        fetch('/ping', { method: 'POST' });
+    }
+}, 10000);
+
+// Отправляем первый пинг сразу при загрузке
+fetch('/ping', { method: 'POST' });
+
+// Если пользователь закрывает вкладку или уходит со страницы
+window.addEventListener('beforeunload', () => {
+    navigator.sendBeacon('/offline');
+});
     </script>
 </body>
 </html>
