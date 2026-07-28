@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Профиль @{{ profile_user.username }}</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #eef2f5; margin: 0; display: flex; justify-content: center; align-items: center; height: 100vh; }
+        .card { background: #fff; padding: 30px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); width: 100%; max-width: 360px; text-align: center; }
+        h2 { margin: 10px 0 5px; font-size: 22px; }
+        .username { color: gray; font-size: 14px; margin-bottom: 15px; }
+        .bio { background: #f8f9fa; padding: 12px; border-radius: 8px; font-size: 14px; color: #333; margin-bottom: 20px; text-align: left; min-height: 40px; }
+        .actions { display: flex; flex-direction: column; gap: 10px; }
+        .btn { padding: 11px; border-radius: 8px; font-size: 15px; font-weight: 500; text-decoration: none; display: block; cursor: pointer; border: none; }
+        .btn-primary { background: #0088cc; color: #fff; }
+        .btn-primary:hover { background: #0077b3; }
+        .btn-danger { background: #ff4d4d; color: #fff; }
+        .btn-danger:hover { background: #e03e3e; }
+        .back { margin-top: 15px; display: inline-block; color: #0088cc; text-decoration: none; font-size: 14px; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h2>{{ profile_user.name }}</h2>
+        <div class="username">@{{ profile_user.username }}</div>
+        
+        <div class="bio">
+            <strong>О себе:</strong><br>
+            {{ profile_user.bio if profile_user.bio else 'Пользователь ничего не написал о себе.' }}
+        </div>
+
+        <div class="actions">
+            <a href="{{ url_for('index', to=profile_user.id) }}" class="btn btn-primary">Написать сообщение</a>
+            
+            <form action="{{ url_for('toggle_block', user_id=profile_user.id) }}" method="POST">
+                <button type="submit" class="btn btn-danger">
+                    {% if is_blocked %} Разблокировать {% else %} Заблокировать {% endif %}
+                </button>
+            </form>
+        </div>
+
+        <a href="{{ url_for('search_users') }}" class="back">Назад к поиску</a>
+    </div>
+</body>
+</html>
