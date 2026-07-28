@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AmaGun</title>
+    <title>Мессенджер</title>
     <style>
         :root {
             --bg-color: #ffffff;
@@ -67,20 +67,28 @@
             align-items: center;
         }
 
-        .sidebar-search {
+        .sidebar-actions {
             padding: 10px 15px;
             border-bottom: 1px solid var(--sidebar-border);
+            display: flex;
+            gap: 10px;
         }
 
-        .sidebar-search input {
-            width: 100%;
-            padding: 8px 12px;
-            border-radius: 20px;
-            border: 1px solid var(--sidebar-border);
+        .action-link {
+            flex: 1;
+            text-align: center;
+            padding: 8px;
             background: var(--chat-bg);
+            border: 1px solid var(--sidebar-border);
+            border-radius: 8px;
+            text-decoration: none;
             color: var(--text-color);
-            outline: none;
-            font-size: 14px;
+            font-size: 13px;
+            font-weight: 500;
+        }
+
+        .action-link:hover {
+            background: var(--hover-bg);
         }
 
         .user-list {
@@ -106,7 +114,7 @@
             display: flex;
             flex-direction: column;
             background: var(--chat-bg);
-            min-width: 0; /* Предотвращает раздувание флекса */
+            min-width: 0;
         }
 
         .chat-header {
@@ -147,7 +155,6 @@
             align-self: flex-end;
         }
 
-        /* Исправленная панель ввода, чтобы не выходила за границы */
         .chat-input-box {
             padding: 10px;
             background: var(--header-bg);
@@ -162,7 +169,7 @@
 
         .chat-input-box input {
             flex: 1;
-            min-width: 0; /* Важно для корректного сжатия на узких экранах */
+            min-width: 0;
             padding: 10px 14px;
             border: 1px solid var(--sidebar-border);
             border-radius: 20px;
@@ -283,22 +290,29 @@
                 </div>
                 <div style="display: flex; gap: 10px; align-items: center;">
                     <button class="theme-btn" onclick="toggleTheme()" title="Сменить тему">💡</button>
-                    <a href="{{ url_for('logout') }}" style="color: #ff4d4d; text-decoration: none; font-size: 14px;">Выйти</a>
+                    <a href="{{ url_for('logout') }}" style="color: #ff4d4d; text-decoration: none; font-size: 13px;">Выйти</a>
                 </div>
             </div>
 
-            <div class="sidebar-search">
-                <input type="text" id="searchInput" placeholder="Поиск пользователей..." onkeyup="filterUsers()">
+            <!-- Быстрые действия: Поиск и Настройки -->
+            <div class="sidebar-actions">
+                <a href="{{ url_for('search_users') }}" class="action-link">🔍 Поиск</a>
+                <a href="{{ url_for('settings') }}" class="action-link">⚙️ Настройки</a>
             </div>
             
+            <!-- Список активных диалогов -->
             <div class="user-list" id="userList">
                 {% for user in users %}
-                    <a href="{{ url_for('index', to=user.id) }}" class="user-item" data-username="{{ user.username | lower }}">
+                    <a href="{{ url_for('index', to=user.id) }}" class="user-item">
                         <div>
-                            <div style="font-weight: 500;">{{ user.username }}</div>
-                            <div style="font-size: 12px; color: {% if user.status == 'В сети' %}green{% else %}gray{% endif %};">{{ user.status }}</div>
+                            <div style="font-weight: 500;">{{ user.name }}</div>
+                            <div style="font-size: 12px; color: {% if user.status == 'В сети' %}green{% else %}gray{% endif %};">@{{ user.username }} • {{ user.status }}</div>
                         </div>
                     </a>
+                {% else %}
+                    <div style="padding: 20px; text-align: center; color: gray; font-size: 14px;">
+                        У вас пока нет активных чатов.<br>Нажмите «🔍 Поиск», чтобы найти пользователей!
+                    </div>
                 {% endfor %}
             </div>
         </div>
@@ -314,7 +328,13 @@
                             </svg>
                             Назад
                         </a>
-                        <h3 style="font-size: 16px; margin: 0;">{{ active_recipient.username }}</h3>
+                        <div>
+                            <!-- Ссылка ведет на профиль собеседника -->
+                            <a href="{{ url_for('view_profile', user_id=active_recipient.id) }}" style="text-decoration: none; color: var(--text-color);">
+                                <h3 style="font-size: 15px; margin: 0; font-weight: 600;">{{ active_recipient.name }}</h3>
+                                <div style="font-size: 11px; color: gray;">@{{ active_recipient.username }}</div>
+                            </a>
+                        </div>
                     </div>
                 </div>
 
@@ -326,37 +346,42 @@
                     {% endfor %}
                 </div>
 
-                <form class="chat-input-box" id="messageForm" onsubmit="sendMessage(event)">
-                    <input type="hidden" id="recipientId" value="{{ active_recipient.id }}">
-                    
-                    <button type="button" class="emoji-btn" onclick="toggleEmojiPicker()">😀</button>
-                    
-                    <div class="emoji-picker" id="emojiPicker">
-                        <span onclick="addEmoji('😊')">😊</span>
-                        <span onclick="addEmoji('😂')">😂</span>
-                        <span onclick="addEmoji('❤️')">❤️</span>
-                        <span onclick="addEmoji('👍')">👍</span>
-                        <span onclick="addEmoji('🔥')">🔥</span>
-                        <span onclick="addEmoji('✨')">✨</span>
-                        <span onclick="addEmoji('🎉')">🎉</span>
-                        <span onclick="addEmoji('😎')">😎</span>
-                        <span onclick="addEmoji('🤔')">🤔</span>
-                        <span onclick="addEmoji('😢')">😢</span>
+                {% if is_blocked %}
+                    <div style="padding: 15px; background: var(--header-bg); text-align: center; color: #ff4d4d; border-top: 1px solid var(--sidebar-border); font-size: 14px;">
+                        Вы заблокировали этого пользователя.
                     </div>
+                {% else %}
+                    <form class="chat-input-box" id="messageForm" onsubmit="sendMessage(event)">
+                        <input type="hidden" id="recipientId" value="{{ active_recipient.id }}">
+                        
+                        <button type="button" class="emoji-btn" onclick="toggleEmojiPicker()">😀</button>
+                        
+                        <div class="emoji-picker" id="emojiPicker">
+                            <span onclick="addEmoji('😊')">😊</span>
+                            <span onclick="addEmoji('😂')">😂</span>
+                            <span onclick="addEmoji('❤️')">❤️</span>
+                            <span onclick="addEmoji('👍')">👍</span>
+                            <span onclick="addEmoji('🔥')">🔥</span>
+                            <span onclick="addEmoji('✨')">✨</span>
+                            <span onclick="addEmoji('🎉')">🎉</span>
+                            <span onclick="addEmoji('😎')">😎</span>
+                            <span onclick="addEmoji('🤔')">🤔</span>
+                            <span onclick="addEmoji('😢')">😢</span>
+                        </div>
 
-                    <input type="text" id="messageInput" placeholder="Написать сообщение..." autocomplete="off" required>
-                    <button type="submit">Отправить</button>
-                </form>
+                        <input type="text" id="messageInput" placeholder="Написать сообщение..." autocomplete="off" required>
+                        <button type="submit">Отправить</button>
+                    </form>
+                {% endif %}
             {% else %}
                 <div class="no-chat-selected">
-                    Выберите чат, чтобы начать общение
+                    Выберите чат слева или найдите пользователя через поиск
                 </div>
             {% endif %}
         </div>
     </div>
 
     <script>
-        // Сохранение и восстановление темы через localStorage
         document.addEventListener("DOMContentLoaded", () => {
             const savedTheme = localStorage.getItem('theme') || 'light';
             document.body.setAttribute('data-theme', savedTheme);
@@ -373,19 +398,6 @@
             let newTheme = currentTheme === 'dark' ? 'light' : 'dark';
             body.setAttribute('data-theme', newTheme);
             localStorage.setItem('theme', newTheme);
-        }
-
-        function filterUsers() {
-            let input = document.getElementById('searchInput').value.toLowerCase();
-            let items = document.getElementsByClassName('user-item');
-            for (let i = 0; i < items.length; i++) {
-                let username = items[i].getAttribute('data-username');
-                if (username.includes(input)) {
-                    items[i].style.display = "flex";
-                } else {
-                    items[i].style.display = "none";
-                }
-            }
         }
 
         function toggleEmojiPicker() {
