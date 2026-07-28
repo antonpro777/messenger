@@ -67,24 +67,37 @@
             align-items: center;
         }
 
+        .user-info-block {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .balance-badge {
+            font-size: 12px;
+            color: #ff9800;
+            font-weight: bold;
+            margin-top: 3px;
+        }
+
         .sidebar-actions {
             padding: 10px 15px;
             border-bottom: 1px solid var(--sidebar-border);
             display: flex;
-            gap: 10px;
+            gap: 8px;
         }
 
         .action-link {
             flex: 1;
             text-align: center;
-            padding: 8px;
+            padding: 8px 4px;
             background: var(--chat-bg);
             border: 1px solid var(--sidebar-border);
             border-radius: 8px;
             text-decoration: none;
             color: var(--text-color);
-            font-size: 13px;
+            font-size: 12px;
             font-weight: 500;
+            cursor: pointer;
         }
 
         .action-link:hover {
@@ -243,6 +256,41 @@
             font-size: 16px;
         }
 
+        /* Модальное окно для игры Змейка */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.6);
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+        }
+        .modal-content {
+            background: var(--sidebar-bg);
+            padding: 20px;
+            border-radius: 12px;
+            text-align: center;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            border: 1px solid var(--sidebar-border);
+        }
+        canvas {
+            background: #111;
+            display: block;
+            margin: 10px auto;
+            border-radius: 6px;
+        }
+        .close-game {
+            background: #ff4d4d;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            margin-top: 10px;
+            font-weight: 500;
+        }
+
         @media (max-width: 768px) {
             .messenger-container {
                 position: relative;
@@ -284,20 +332,22 @@
         <!-- Сайдбар -->
         <div class="sidebar">
             <div class="sidebar-header">
-                <div>
+                <div class="user-info-block">
                     <strong>{{ current_user.name }}</strong>
                     <div style="font-size: 12px; color: gray;">@{{ current_user.username }}</div>
+                    <div class="balance-badge">🪙 <span id="userBalance">{{ current_user.balance }}</span> GUN</div>
                 </div>
-                <div style="display: flex; gap: 10px; align-items: center;">
+                <div style="display: flex; gap: 8px; align-items: center;">
                     <button class="theme-btn" onclick="toggleTheme()" title="Сменить тему">💡</button>
                     <a href="{{ url_for('logout') }}" style="color: #ff4d4d; text-decoration: none; font-size: 13px;">Выйти</a>
                 </div>
             </div>
 
-            <!-- Быстрые действия: Поиск и Настройки -->
+            <!-- Действия: Поиск, Настройки, Игра -->
             <div class="sidebar-actions">
                 <a href="{{ url_for('search_users') }}" class="action-link">🔍 Поиск</a>
                 <a href="{{ url_for('settings') }}" class="action-link">⚙️ Настройки</a>
+                <button onclick="openSnakeGame()" class="action-link" style="border:none; font: inherit; background: var(--chat-bg);">🎮 Змейка</button>
             </div>
             
             <!-- Список активных диалогов -->
@@ -329,7 +379,6 @@
                             Назад
                         </a>
                         <div>
-                            <!-- Ссылка ведет на профиль собеседника -->
                             <a href="{{ url_for('view_profile', user_id=active_recipient.id) }}" style="text-decoration: none; color: var(--text-color);">
                                 <h3 style="font-size: 15px; margin: 0; font-weight: 600;">{{ active_recipient.name }}</h3>
                                 <div style="font-size: 11px; color: gray;">@{{ active_recipient.username }}</div>
@@ -378,6 +427,18 @@
                     Выберите чат слева или найдите пользователя через поиск
                 </div>
             {% endif %}
+        </div>
+    </div>
+
+    <!-- Модальное окно игры "Змейка" -->
+    <div class="modal" id="snakeModal">
+        <div class="modal-content">
+            <h3 style="margin-bottom: 5px;">Игра «Змейка»</h3>
+            <p style="font-size: 13px; color: gray; margin-bottom: 10px;">Каждые 10 очков = 1 GUN 🪙</p>
+            <div style="font-size: 15px; font-weight: bold; margin-bottom: 5px;">Очки: <span id="snakeScore">0</span></div>
+            <canvas id="snakeCanvas" width="300" height="300"></canvas>
+            <br>
+            <button class="close-game" onclick="closeSnakeGame()">Закрыть игру</button>
         </div>
     </div>
 
@@ -443,20 +504,154 @@
                 }
             });
         }
-        // Отправляем пинг каждые 10 секунд, пока вкладка открыта
-setInterval(() => {
-    if (document.visibilityState === 'visible') {
+
+        // --- Логика мини-игры «Змейка» ---
+        let snakeInterval = null;
+        const canvas = document.getElementById('snakeCanvas');
+        const ctx = canvas.getContext('2d');
+        let grid = 15;
+        let count = 0;
+        let score = 0;
+
+        let snake = {
+            x: 150,
+            y: 150,
+            dx: grid,
+            dy: 0,
+            cells: [],
+            maxCells: 4
+        };
+
+        let apple = {
+            x: 90,
+            y: 90
+        };
+
+        function getRandomInt(min, max) {
+            return Math.floor(Math.random() * (max - min)) + min;
+        }
+
+        function openSnakeGame() {
+            document.getElementById('snakeModal').style.display = 'flex';
+            resetGame();
+            snakeInterval = requestAnimationFrame(gameLoop);
+        }
+
+        function closeSnakeGame() {
+            document.getElementById('snakeModal').style.display = 'none';
+            cancelAnimationFrame(snakeInterval);
+            if (score > 0) {
+                saveScore(score);
+            }
+        }
+
+        function resetGame() {
+            score = 0;
+            document.getElementById('snakeScore').textContent = score;
+            snake.x = 150;
+            snake.y = 150;
+            snake.cells = [];
+            snake.maxCells = 4;
+            snake.dx = grid;
+            snake.dy = 0;
+            apple.x = getRandomInt(0, 20) * grid;
+            apple.y = getRandomInt(0, 20) * grid;
+        }
+
+        function gameLoop() {
+            snakeInterval = requestAnimationFrame(gameLoop);
+
+            if (++count < 6) { // скорость игры
+                return;
+            }
+            count = 0;
+            ctx.clearRect(0,0,canvas.width,canvas.height);
+
+            snake.x += snake.dx;
+            snake.y += snake.dy;
+
+            if (snake.x < 0) { snake.x = canvas.width - grid; }
+            else if (snake.x >= canvas.width) { snake.x = 0; }
+            if (snake.y < 0) { snake.y = canvas.height - grid; }
+            else if (snake.y >= canvas.height) { snake.y = 0; }
+
+            snake.cells.unshift({x: snake.x, y: snake.y});
+
+            if (snake.cells.length > snake.maxCells) {
+                snake.cells.pop();
+            }
+
+            // Рисуем еду
+            ctx.fillStyle = 'red';
+            ctx.fillRect(apple.x, apple.y, grid-1, grid-1);
+
+            // Рисуем змейку
+            ctx.fillStyle = '#0088cc';
+            snake.cells.forEach(function(cell, index) {
+                ctx.fillRect(cell.x, cell.y, grid-1, grid-1);
+
+                // Съел яблоко
+                if (cell.x === apple.x && cell.y === apple.y) {
+                    snake.maxCells++;
+                    score += 5;
+                    document.getElementById('snakeScore').textContent = score;
+                    apple.x = getRandomInt(0, 20) * grid;
+                    apple.y = getRandomInt(0, 20) * grid;
+                }
+
+                // Столкновение с собой
+                for (let i = index + 1; i < snake.cells.length; i++) {
+                    if (cell.x === snake.cells[i].x && cell.y === snake.cells[i].y) {
+                        saveScore(score);
+                        resetGame();
+                    }
+                }
+            });
+        }
+
+        function saveScore(finalScore) {
+            if (finalScore <= 0) return;
+            fetch('/earn_gon', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ score: finalScore })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success && data.earned > 0) {
+                    document.getElementById('userBalance').textContent = data.new_balance;
+                    alert(`Игра окончена! Вы заработали ${data.earned} GUN (Ваш счет: ${finalScore})`);
+                    score = 0; // Сбрасываем локальный счет, чтобы не начислять повторно
+                }
+            });
+        }
+
+        // Управление с клавиатуры
+        document.addEventListener('keydown', function(e) {
+            if (document.getElementById('snakeModal').style.display !== 'flex') return;
+
+            if (e.key === 'ArrowLeft' && snake.dx === 0) {
+                snake.dx = -grid; snake.dy = 0;
+            } else if (e.key === 'ArrowUp' && snake.dy === 0) {
+                snake.dy = -grid; snake.dx = 0;
+            } else if (e.key === 'ArrowRight' && snake.dx === 0) {
+                snake.dx = grid; snake.dy = 0;
+            } else if (e.key === 'ArrowDown' && snake.dy === 0) {
+                snake.dy = grid; snake.dx = 0;
+            }
+        });
+
+        // Отправка пинга для статуса «В сети»
+        setInterval(() => {
+            if (document.visibilityState === 'visible') {
+                fetch('/ping', { method: 'POST' });
+            }
+        }, 10000);
         fetch('/ping', { method: 'POST' });
-    }
-}, 10000);
 
-// Отправляем первый пинг сразу при загрузке
-fetch('/ping', { method: 'POST' });
-
-// Если пользователь закрывает вкладку или уходит со страницы
-window.addEventListener('beforeunload', () => {
-    navigator.sendBeacon('/offline');
-});
+        window.addEventListener('beforeunload', () => {
+            navigator.sendBeacon('/offline');
+        });
     </script>
 </body>
 </html>
