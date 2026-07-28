@@ -2,11 +2,33 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <!-- 1. Мета-тег для мобильной адаптации -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Мессенджер</title>
     <style>
-        /* Базовые сбросы и стили */
+        :root {
+            --bg-color: #ffffff;
+            --text-color: #000000;
+            --sidebar-bg: #ffffff;
+            --sidebar-border: #dbdbdb;
+            --chat-bg: #eef2f5;
+            --header-bg: #ffffff;
+            --msg-in: #ffffff;
+            --msg-out: #eeffde;
+            --hover-bg: #f5f5f5;
+        }
+
+        [data-theme="dark"] {
+            --bg-color: #18191a;
+            --text-color: #e4e6eb;
+            --sidebar-bg: #242526;
+            --sidebar-border: #393a3b;
+            --chat-bg: #18191a;
+            --header-bg: #242526;
+            --msg-in: #3a3b3c;
+            --msg-out: #005c4b;
+            --hover-bg: #303031;
+        }
+
         * {
             box-sizing: border-box;
             margin: 0;
@@ -17,9 +39,10 @@
         body, html {
             height: 100vh;
             overflow: hidden;
+            background-color: var(--bg-color);
+            color: var(--text-color);
         }
 
-        /* Общий контейнер для ПК (две колонки) */
         .messenger-container {
             display: flex;
             height: 100vh;
@@ -27,22 +50,37 @@
             position: relative;
         }
 
-        /* Левая панель: список пользователей / профиль */
         .sidebar {
             width: 320px;
-            border-right: 1px solid #dbdbdb;
-            background: #ffffff;
+            border-right: 1px solid var(--sidebar-border);
+            background: var(--sidebar-bg);
             display: flex;
             flex-direction: column;
         }
 
         .sidebar-header {
             padding: 15px;
-            background: #f7f9fa;
-            border-bottom: 1px solid #dbdbdb;
+            background: var(--sidebar-bg);
+            border-bottom: 1px solid var(--sidebar-border);
             display: flex;
             justify-content: space-between;
             align-items: center;
+        }
+
+        .sidebar-search {
+            padding: 10px 15px;
+            border-bottom: 1px solid var(--sidebar-border);
+        }
+
+        .sidebar-search input {
+            width: 100%;
+            padding: 8px 12px;
+            border-radius: 20px;
+            border: 1px solid var(--sidebar-border);
+            background: var(--chat-bg);
+            color: var(--text-color);
+            outline: none;
+            font-size: 14px;
         }
 
         .user-list {
@@ -55,28 +93,28 @@
             display: flex;
             align-items: center;
             text-decoration: none;
-            color: #000;
-            border-bottom: 1px solid #f0f0f0;
+            color: var(--text-color);
+            border-bottom: 1px solid var(--sidebar-border);
         }
 
         .user-item:hover {
-            background: #f5f5f5;
+            background: var(--hover-bg);
         }
 
-        /* Правая область: окно чата */
         .chat-area {
             flex: 1;
             display: flex;
             flex-direction: column;
-            background: #eef2f5;
+            background: var(--chat-bg);
         }
 
         .chat-header {
             padding: 12px 15px;
-            background: #ffffff;
-            border-bottom: 1px solid #dbdbdb;
+            background: var(--header-bg);
+            border-bottom: 1px solid var(--sidebar-border);
             display: flex;
             align-items: center;
+            justify-content: space-between;
         }
 
         .messages-box {
@@ -97,37 +135,40 @@
         }
 
         .message.incoming {
-            background: #ffffff;
+            background: var(--msg-in);
             align-self: flex-start;
-            border: 1px solid #e0e0e0;
+            border: 1px solid var(--sidebar-border);
         }
 
         .message.outgoing {
-            background: #eeffde;
+            background: var(--msg-out);
             align-self: flex-end;
         }
 
         .chat-input-box {
             padding: 12px;
-            background: #ffffff;
-            border-top: 1px solid #dbdbdb;
+            background: var(--header-bg);
+            border-top: 1px solid var(--sidebar-border);
             display: flex;
             gap: 10px;
+            position: relative;
         }
 
         .chat-input-box input {
             flex: 1;
             padding: 10px 14px;
-            border: 1px solid #dbdbdb;
+            border: 1px solid var(--sidebar-border);
             border-radius: 20px;
             outline: none;
             font-size: 14px;
+            background: var(--bg-color);
+            color: var(--text-color);
         }
 
         .chat-input-box button {
             padding: 10px 20px;
             background: #0088cc;
-            color: #white;
+            color: #ffffff;
             border: none;
             border-radius: 20px;
             cursor: pointer;
@@ -138,7 +179,41 @@
             background: #0077b3;
         }
 
-        /* Скрытая по умолчанию кнопка "Назад" для ПК */
+        .emoji-btn, .theme-btn {
+            background: none;
+            border: none;
+            font-size: 20px;
+            cursor: pointer;
+            padding: 0 5px;
+        }
+
+        /* Панель эмодзи */
+        .emoji-picker {
+            position: absolute;
+            bottom: 60px;
+            left: 12px;
+            background: var(--header-bg);
+            border: 1px solid var(--sidebar-border);
+            padding: 10px;
+            border-radius: 8px;
+            display: none;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 5px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+        }
+
+        .emoji-picker span {
+            font-size: 20px;
+            cursor: pointer;
+            text-align: center;
+            padding: 5px;
+            border-radius: 4px;
+        }
+
+        .emoji-picker span:hover {
+            background: var(--hover-bg);
+        }
+
         .back-btn {
             display: none;
         }
@@ -148,17 +223,14 @@
             justify-content: center;
             align-items: center;
             height: 100%;
-            color: #888;
+            color: gray;
             font-size: 16px;
         }
 
-        /* 2. МОБИЛЬНАЯ АДАПТАЦИЯ (как в Telegram, экраны до 768px) */
         @media (max-width: 768px) {
             .messenger-container {
                 position: relative;
             }
-
-            /* Если собеседник НЕ выбран: показываем список чатов на весь экран, чат скрыт */
             .sidebar {
                 width: 100%;
                 height: 100%;
@@ -168,8 +240,6 @@
                 z-index: {% if active_recipient %}1{% else %}2{% endif %};
                 display: {% if active_recipient %}none{% else %}flex{% endif %};
             }
-
-            /* Если собеседник выбран: разворачиваем чат на весь экран поверх списка */
             .chat-area {
                 width: 100%;
                 height: 100%;
@@ -179,8 +249,6 @@
                 z-index: {% if active_recipient %}2{% else %}1{% endif %};
                 display: {% if active_recipient %}flex{% else %}none{% endif %};
             }
-
-            /* Показываем стильную кнопку "Назад" в шапке чата на телефонах */
             .back-btn {
                 display: inline-flex !important;
                 align-items: center;
@@ -194,22 +262,30 @@
         }
     </style>
 </head>
-<body>
+<body data-theme="light">
 
     <div class="messenger-container">
-        <!-- Сайдбар (список пользователей) -->
+        <!-- Сайдбар -->
         <div class="sidebar">
             <div class="sidebar-header">
                 <div>
                     <strong>{{ current_user.name }}</strong>
                     <div style="font-size: 12px; color: gray;">@{{ current_user.username }}</div>
                 </div>
-                <a href="{{ url_for('logout') }}" style="color: #ff4d4d; text-decoration: none; font-size: 14px;">Выйти</a>
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    <button class="theme-btn" onclick="toggleTheme()" title="Сменить тему">💡</button>
+                    <a href="{{ url_for('logout') }}" style="color: #ff4d4d; text-decoration: none; font-size: 14px;">Выйти</a>
+                </div>
+            </div>
+
+            <!-- Поиск по пользователям -->
+            <div class="sidebar-search">
+                <input type="text" id="searchInput" placeholder="Поиск пользователей..." onkeyup="filterUsers()">
             </div>
             
-            <div class="user-list">
+            <div class="user-list" id="userList">
                 {% for user in users %}
-                    <a href="{{ url_for('index', to=user.id) }}" class="user-item">
+                    <a href="{{ url_for('index', to=user.id) }}" class="user-item" data-username="{{ user.username | lower }}">
                         <div>
                             <div style="font-weight: 500;">{{ user.username }}</div>
                             <div style="font-size: 12px; color: {% if user.status == 'В сети' %}green{% else %}gray{% endif %};">{{ user.status }}</div>
@@ -223,14 +299,15 @@
         <div class="chat-area">
             {% if active_recipient %}
                 <div class="chat-header">
-                    <!-- Кнопка "Назад" в стиле Telegram для телефонов -->
-                    <a href="{{ url_for('index') }}" class="back-btn">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M19 12H5M12 19l-7-7 7-7"/>
-                        </svg>
-                        Назад
-                    </a>
-                    <h3 style="font-size: 16px; margin: 0;">{{ active_recipient.username }}</h3>
+                    <div style="display: flex; align-items: center;">
+                        <a href="{{ url_for('index') }}" class="back-btn">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M19 12H5M12 19l-7-7 7-7"/>
+                            </svg>
+                            Назад
+                        </a>
+                        <h3 style="font-size: 16px; margin: 0;">{{ active_recipient.username }}</h3>
+                    </div>
                 </div>
 
                 <div class="messages-box" id="messagesBox">
@@ -241,9 +318,27 @@
                     {% endfor %}
                 </div>
 
-                <form class="chat-input-box" action="{{ url_for('send_message') }}" method="POST">
-                    <input type="hidden" name="recipient_id" value="{{ active_recipient.id }}">
-                    <input type="text" name="content" placeholder="Написать сообщение..." autocomplete="off" required>
+                <!-- Форма отправки сообщений через JS, без перехода на страницу ОК -->
+                <form class="chat-input-box" id="messageForm" onsubmit="sendMessage(event)">
+                    <input type="hidden" id="recipientId" value="{{ active_recipient.id }}">
+                    
+                    <button type="button" class="emoji-btn" onclick="toggleEmojiPicker()">😀</button>
+                    
+                    <!-- Выпадающий блок с эмодзи -->
+                    <div class="emoji-picker" id="emojiPicker">
+                        <span onclick="addEmoji('😊')">😊</span>
+                        <span onclick="addEmoji('😂')">😂</span>
+                        <span onclick="addEmoji('❤️')">❤️</span>
+                        <span onclick="addEmoji('👍')">👍</span>
+                        <span onclick="addEmoji('🔥')">🔥</span>
+                        <span onclick="addEmoji('✨')">✨</span>
+                        <span onclick="addEmoji('🎉')">🎉</span>
+                        <span onclick="addEmoji('😎')">😎</span>
+                        <span onclick="addEmoji('🤔')">🤔</span>
+                        <span onclick="addEmoji('😢')">😢</span>
+                    </div>
+
+                    <input type="text" id="messageInput" placeholder="Написать сообщение..." autocomplete="off" required>
                     <button type="submit">Отправить</button>
                 </form>
             {% else %}
@@ -255,10 +350,82 @@
     </div>
 
     <script>
-        // Автоматическая прокрутка сообщений вниз при открытии чата
+        // Прокрутка чата вниз
         const box = document.getElementById('messagesBox');
         if (box) {
             box.scrollTop = box.scrollHeight;
+        }
+
+        // Поиск по пользователям
+        function filterUsers() {
+            let input = document.getElementById('searchInput').value.toLowerCase();
+            let items = document.getElementsByClassName('user-item');
+            for (let i = 0; i < items.length; i++) {
+                let username = items[i].getAttribute('data-username');
+                if (username.includes(input)) {
+                    items[i].style.display = "flex";
+                } else {
+                    items[i].style.display = "none";
+                }
+            }
+        }
+
+        // Переключение тем (Светлая / Темная)
+        function toggleTheme() {
+            const body = document.body;
+            if (body.getAttribute('data-theme') === 'dark') {
+                body.setAttribute('data-theme', 'light');
+            } else {
+                body.setAttribute('data-theme', 'dark');
+            }
+        }
+
+        // Управление панелью эмодзи
+        function toggleEmojiPicker() {
+            const picker = document.getElementById('emojiPicker');
+            picker.style.display = picker.style.display === 'grid' ? 'none' : 'grid';
+        }
+
+        function addEmoji(emoji) {
+            const input = document.getElementById('messageInput');
+            input.value += emoji;
+            toggleEmojiPicker();
+            input.focus();
+        }
+
+        // Отправка сообщения без перезагрузки страницы
+        function sendMessage(event) {
+            event.preventDefault();
+            const recipientId = document.getElementById('recipientId').value;
+            const input = document.getElementById('messageInput');
+            const content = input.value.trim();
+
+            if (!content) return;
+
+            let formData = new URLSearchParams();
+            formData.append('recipient_id', recipientId);
+            formData.append('content', content);
+
+            fetch('/send', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: formData
+            }).then(response => {
+                if (response.ok) {
+                    // Создаем элемент сообщения и добавляем в чат
+                    const messagesBox = document.getElementById('messagesBox');
+                    const msgDiv = document.createElement('div');
+                    msgDiv.className = 'message outgoing';
+                    msgDiv.textContent = content;
+                    messagesBox.appendChild(msgDiv);
+                    
+                    // Очищаем поле ввода и скроллим вниз
+                    input.value = '';
+                    messagesBox.scrollTop = messagesBox.scrollHeight;
+                }
+            });
         }
     </script>
 </body>
