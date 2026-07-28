@@ -138,6 +138,116 @@ def search_users():
 
     return render_template('search.html', current_user=current_user, users=users, query=query)
 
+    # Список доступных предметов с вашими ценами и эмодзи
+SHOP_ITEMS = [
+    {"emoji": "🍎", "price": 30},
+    {"emoji": "🍌", "price": 50},
+    {"emoji": "🍕", "price": 60},
+    {"emoji": "🍔", "price": 70},
+    {"emoji": "🍩", "price": 80},
+    {"emoji": "🍪", "price": 90},
+    {"emoji": "🍫", "price": 100},
+    {"emoji": "🍬", "price": 120},
+    {"emoji": "👑", "price": 150},
+    {"emoji": "💎", "price": 200},
+    {"emoji": "💍", "price": 250},
+    {"emoji": "🚀", "price": 300},
+    {"emoji": "🏎️", "price": 350},
+    {"emoji": "🎸", "price": 400},
+    {"emoji": "🏆", "price": 500},
+    {"emoji": "🎯", "price": 555},
+    {"emoji": "🎲", "price": 600},
+    {"emoji": "🔥", "price": 666},
+    {"emoji": "⚡", "price": 700},
+    {"emoji": "⭐", "price": 777},
+    {"emoji": "🔮", "price": 800},
+    {"emoji": "🧿", "price": 888},
+    {"emoji": "💡", "price": 900},
+    {"emoji": "💻", "price": 1000},
+    {"emoji": "📱", "price": 1100},
+    {"emoji": "⌚", "price": 1200},
+    {"emoji": "🛸", "price": 1337},
+    {"emoji": "🛡️", "price": 1488},
+    {"emoji": "⚔️", "price": 1555},
+    {"emoji": "🧪", "price": 1600},
+    {"emoji": "🧬", "price": 1700},
+    {"emoji": "🗿", "price": 1800}
+]
+
+@app.route('/shop')
+def shop():
+    current_user = session.get('user')
+    if not current_user:
+        return redirect(url_for('login'))
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    # Актуализируем баланс
+    cur.execute("SELECT balance FROM users WHERE id = %s", (current_user['id'],))
+    db_user = cur.fetchone()
+    if db_user:
+        current_user['balance'] = db_user['balance']
+
+    # Получаем купленные предметы пользователя
+    cur.execute("SELECT item_emoji FROM inventory WHERE user_id = %s", (current_user['id'],))
+    owned_items = [row['item_emoji'] for row in cur.fetchall()]
+
+    cur.close()
+    conn.close()
+
+    return render_template('shop.html', current_user=current_user, items=SHOP_ITEMS, owned_items=owned_items)
+
+@app.route('/buy_item', methods=['POST'])
+def buy_item():
+    current_user = session.get('user')
+    if not current_user:
+        return jsonify({"success": False, "error": "Unauthorized"}), 401
+
+    data = request.get_json()
+    item_emoji = data.get('emoji')
+    item_price = data.get('price')
+
+    # Ищем предмет в списке разрешенных цен
+    target_item = next((item for item in SHOP_ITEMS if item['emoji'] == item_emoji and item['price'] == item_price), None)
+    if not target_item:
+        return jsonify({"success": False, "error": "Неверный предмет"}), 400
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    # Проверяем баланс
+    cur.execute("SELECT balance FROM users WHERE id = %s", (current_user['id'],))
+    user_row = cur.fetchone()
+    current_balance = user_row['balance'] if user_row else 0
+
+    if current_balance < item_price:
+        cur.close()
+        conn.close()
+        return jsonify({"success": False, "error": "Недостаточно GUN!"}), 400
+
+    # Проверяем, не куплен ли уже
+    cur.execute("SELECT * FROM inventory WHERE user_id = %s AND item_emoji = %s", (current_user['id'], item_emoji))
+    if cur.fetchone():
+        cur.close()
+        conn.close()
+        return jsonify({"success": False, "error": "Предмет уже куплен!"}), 400
+
+    # Списываем баланс и добавляем в инвентарь
+    cur.execute("UPDATE users SET balance = balance - %s WHERE id = %s", (item_price, current_user['id']))
+    cur.execute("INSERT INTO inventory (user_id, item_emoji, item_price) VALUES (%s, %s, %s)", (current_user['id'], item_emoji, item_price))
+    conn.commit()
+
+    # Получаем новый баланс
+    cur.execute("SELECT balance FROM users WHERE id = %s", (current_user['id'],))
+    new_balance = cur.fetchone()['balance']
+
+    cur.close()
+    conn.close()
+
+    session['user']['balance'] = new_balance
+    return jsonify({"success": True, "new_balance": new_balance})
+
 @app.route('/profile/<int:user_id>')
 def view_profile(user_id):
     current_user = session.get('user')
