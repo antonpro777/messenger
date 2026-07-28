@@ -345,10 +345,11 @@
 
             <!-- Действия: Поиск, Настройки, Игра -->
             <div class="sidebar-actions">
-                <a href="{{ url_for('search_users') }}" class="action-link">🔍 Поиск</a>
-                <a href="{{ url_for('settings') }}" class="action-link">⚙️ Настройки</a>
-                <button onclick="openSnakeGame()" class="action-link" style="border:none; font: inherit; background: var(--chat-bg);">🎮 Змейка</button>
-            </div>
+    <a href="{{ url_for('search_users') }}" class="action-link">🔍 Поиск</a>
+    <a href="{{ url_for('settings') }}" class="action-link">⚙️ Настройки</a>
+    <a href="{{ url_for('shop') }}" class="action-link">🛒 Магазин</a>
+    <button onclick="openSnakeGame()" class="action-link" style="border:none; font: inherit; background: var(--chat-bg);">🎮 Змейка</button>
+</div>
             
             <!-- Список активных диалогов -->
             <div class="user-list" id="userList">
