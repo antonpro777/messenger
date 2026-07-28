@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Магазин предметов</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #eef2f5; margin: 0; display: flex; justify-content: center; }
+        .container { width: 100%; max-width: 480px; background: #fff; height: 100vh; display: flex; flex-direction: column; box-shadow: 0 0 10px rgba(0,0,0,0.05); }
+        .header { padding: 15px; background: #f7f9fa; border-bottom: 1px solid #dbdbdb; display: flex; justify-content: space-between; align-items: center; }
+        .header a { color: #0088cc; text-decoration: none; font-size: 14px; }
+        .balance { font-weight: bold; color: #ff9800; font-size: 15px; }
+        .grid { flex: 1; overflow-y: auto; padding: 15px; display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+        .item-card { background: #fdfdfd; border: 1px solid #e0e0e0; border-radius: 10px; padding: 15px; text-align: center; display: flex; flex-direction: column; justify-content: space-between; align-items: center; box-shadow: 0 2px 5px rgba(0,0,0,0.02); }
+        .item-emoji { font-size: 36px; margin-bottom: 8px; }
+        .item-price { font-size: 13px; color: #666; margin-bottom: 10px; font-weight: 500; }
+        .btn { width: 100%; padding: 8px; border-radius: 6px; font-size: 13px; font-weight: 500; cursor: pointer; border: none; }
+        .btn-buy { background: #0088cc; color: white; }
+        .btn-buy:hover { background: #0077b3; }
+        .btn-owned { background: #e0e0e0; color: #666; cursor: default; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <a href="{{ url_for('index') }}">← Назад</a>
+            <div class="balance">🪙 <span id="shopBalance">{{ current_user.balance }}</span> GUN</div>
+        </div>
+        <div class="grid">
+            {% for item in items %}
+                <div class="item-card">
+                    <div class="item-emoji">{{ item.emoji }}</div>
+                    <div class="item-price">🪙 {{ item.price }} GUN</div>
+                    {% if item.emoji in owned_items %}
+                        <button class="btn btn-owned" disabled>Куплено</button>
+                    {% else %}
+                        <button class="btn btn-buy" onclick="buyItem('{{ item.emoji }}', {{ item.price }}, this)">Купить</button>
+                    {% endif %}
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <script>
+        function buyItem(emoji, price, btn) {
+            fetch('/buy_item', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ emoji: emoji, price: price })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    document.getElementById('shopBalance').textContent = data.new_balance;
+                    btn.textContent = 'Куплено';
+                    btn.className = 'btn btn-owned';
+                    btn.disabled = true;
+                    alert(`Вы успешно купили предмет ${emoji}!`);
+                } else {
+                    alert(data.error || 'Ошибка покупки');
+                }
+            });
+        }
+    </script>
+</body>
+</html>
