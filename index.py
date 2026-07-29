@@ -89,6 +89,70 @@ def index():
         is_blocked=is_blocked
     )
 
+@app.route('/mark_read', methods=['POST'])
+def mark_read():
+    current_user = session.get('user')
+    if not current_user:
+        return jsonify({'success': False}), 401
+    
+    data = request.get_json()
+    sender_id = data.get('sender_id')
+    
+    conn = get_db_connection()
+    cur = conn.cursor()
+    # Помечаем все сообщения от собеседника как прочитанные
+    cur.execute("""
+        UPDATE messages 
+        SET is_read = TRUE 
+        WHERE sender_id = %s AND recipient_id = %s AND is_read = FALSE
+    """, (sender_id, current_user['id']))
+    conn.commit()
+    cur.close()
+    conn.close()
+    
+    return jsonify({'success': True})
+
+@app.route('/delete_message', methods=['POST'])
+def delete_message():
+    current_user = session.get('user')
+    if not current_user:
+        return jsonify({'success': False}), 401
+        
+    data = request.get_json()
+    msg_id = data.get('msg_id')
+    
+    conn = get_db_connection()
+    cur = conn.cursor()
+    # Удалять (скрывать) может только отправитель
+    cur.execute("""
+        UPDATE messages 
+        SET is_deleted = TRUE 
+        WHERE id = %s AND sender_id = %s
+    """, (msg_id, current_user['id']))
+    conn.commit()
+    cur.close()
+    conn.close()
+    
+    return jsonify({'success': True})
+
+@app.route('/unread_count', methods=['GET'])
+def unread_count():
+    current_user = session.get('user')
+    if not current_user:
+        return jsonify({'count': 0})
+        
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT COUNT(*) FROM messages 
+        WHERE recipient_id = %s AND is_read = FALSE AND is_deleted = FALSE
+    """, (current_user['id'],))
+    count = cur.fetchone()[0]
+    cur.close()
+    conn.close()
+    
+    return jsonify({'count': count})
+
 @app.route('/transfer_gun', methods=['POST'])
 def transfer_gun():
     current_user = session.get('user')
