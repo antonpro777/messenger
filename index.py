@@ -22,19 +22,20 @@ def index():
     conn = get_db_connection()
     cur = conn.cursor()
 
-    # Актуализируем баланс и данные текущего пользователя
-    cur.execute("SELECT balance, name, bio FROM users WHERE id = %s", (current_user['id'],))
+    # Актуализируем баланс, имя, bio и статус админа текущего пользователя из БД
+    cur.execute("SELECT balance, name, bio, is_admin FROM users WHERE id = %s", (current_user['id'],))
     db_user = cur.fetchone()
     if db_user:
         current_user['balance'] = db_user['balance']
         current_user['name'] = db_user['name']
         current_user['bio'] = db_user['bio']
+        current_user['is_admin'] = db_user['is_admin']
 
     # Обновляем свой собственный статус на 'В сети' при открытии/обновлении главной страницы
     cur.execute("UPDATE users SET status = 'В сети', last_active = CURRENT_TIMESTAMP WHERE id = %s", (current_user['id'],))
     conn.commit()
 
-    # Если последняя активность была больше 15 секунд назад, автоматически меняем статус пользователя на 'Не в сети' в базе
+    # Если последняя активность была больше 15 секунд назад, автоматически меняем статус пользователя на 'Не в сети'
     cur.execute("""
         UPDATE users 
         SET status = 'Не в сети' 
@@ -44,7 +45,7 @@ def index():
 
     # Список чатов: только те, с кем есть переписка и кто не в блоке
     cur.execute("""
-        SELECT DISTINCT u.id, u.username, u.name, u.status 
+        SELECT DISTINCT u.id, u.username, u.name, u.status, u.is_admin 
         FROM users u
         JOIN messages m ON (u.id = m.sender_id OR u.id = m.recipient_id)
         WHERE (m.sender_id = %s OR m.recipient_id = %s) AND u.id != %s
@@ -59,7 +60,7 @@ def index():
     is_blocked = False
 
     if active_recipient_id:
-        cur.execute("SELECT id, username, name, status, bio FROM users WHERE id = %s", (active_recipient_id,))
+        cur.execute("SELECT id, username, name, status, bio, is_admin FROM users WHERE id = %s", (active_recipient_id,))
         active_recipient = cur.fetchone()
 
         if active_recipient:
@@ -104,7 +105,6 @@ def transfer_gun():
     conn = get_db_connection()
     cur = conn.cursor()
 
-    # Проверяем баланс отправителя
     cur.execute("SELECT balance, is_admin FROM users WHERE id = %s", (current_user['id'],))
     sender_row = cur.fetchone()
     if not sender_row or sender_row['balance'] < amount:
@@ -112,7 +112,6 @@ def transfer_gun():
         conn.close()
         return jsonify({"success": False, "error": "Недостаточно GUN на балансе!"}), 400
 
-    # Проверяем получателя
     cur.execute("SELECT id, is_admin FROM users WHERE id = %s", (recipient_id,))
     recipient_row = cur.fetchone()
     if not recipient_row:
@@ -120,27 +119,23 @@ def transfer_gun():
         conn.close()
         return jsonify({"success": False, "error": "Получатель не найден"}), 404
 
-    # Логика 50% комиссии для админа:
-    # Если отправитель обычный пользователь, а получатель — админ, то админу идет вся сумма или бонус. 
-    # Если перевод между обычными пользователями, но в системе есть админы — 50% от суммы падает первому попавшемуся админу в качестве налога/комиссии.
     tax_amount = int(amount * 0.5)
     net_amount = amount - tax_amount
 
     # Списываем всю сумму у отправителя
     cur.execute("UPDATE users SET balance = balance - %s WHERE id = %s", (amount, current_user['id']))
 
-    # Зачисляем получателю чистую сумму (или полную, если получатель сам админ)
+    # Зачисляем получателю
     actual_recipient_gain = amount if recipient_row['is_admin'] else net_amount
     cur.execute("UPDATE users SET balance = balance + %s WHERE id = %s", (actual_recipient_gain, recipient_id))
 
-    # Если получатель не админ, 50% (tax_amount) отправляем администратору системы
+    # Если получатель не админ, 50% комиссии отправляем первому попавшемуся админу
     if not recipient_row['is_admin'] and tax_amount > 0:
         cur.execute("SELECT id FROM users WHERE is_admin = TRUE LIMIT 1")
         admin_row = cur.fetchone()
         if admin_row:
             cur.execute("UPDATE users SET balance = balance + %s WHERE id = %s", (tax_amount, admin_row['id']))
 
-    # Записываем сообщение в чат
     transfer_text = f"🎁 Подарил(а) {amount} GUN 🪙 (Комиссия системы: {tax_amount})" if not recipient_row['is_admin'] else f"🎁 Подарил(а) {amount} GUN 🪙"
     cur.execute(
         "INSERT INTO messages (sender_id, recipient_id, content) VALUES (%s, %s, %s)",
@@ -167,7 +162,6 @@ def admin_delete_user():
     conn = get_db_connection()
     cur = conn.cursor()
 
-    # Проверяем, действительно ли текущий пользователь — администратор
     cur.execute("SELECT is_admin FROM users WHERE id = %s", (current_user['id'],))
     user_row = cur.fetchone()
     if not user_row or not user_row['is_admin']:
@@ -183,7 +177,6 @@ def admin_delete_user():
         conn.close()
         return jsonify({"success": False, "error": "Не указан ID пользователя"}), 400
 
-    # Удаляем пользователя (каскадно удалятся его сообщения и инвентарь благодаря foreign keys)
     cur.execute("DELETE FROM users WHERE id = %s", (target_user_id,))
     conn.commit()
 
@@ -232,7 +225,7 @@ def search_users():
         conn = get_db_connection()
         cur = conn.cursor()
         cur.execute("""
-            SELECT id, username, name, status, bio FROM users 
+            SELECT id, username, name, status, bio, is_admin FROM users 
             WHERE (username ILIKE %s OR name ILIKE %s) AND id != %s
         """, (f"%{query}%", f"%{query}%", current_user['id']))
         users = cur.fetchall()
@@ -241,7 +234,6 @@ def search_users():
 
     return render_template('search.html', current_user=current_user, users=users, query=query)
 
-    # Список доступных предметов с вашими ценами и эмодзи
 SHOP_ITEMS = [
     {"emoji": "🍎", "price": 30},
     {"emoji": "🍌", "price": 50},
@@ -286,13 +278,11 @@ def shop():
     conn = get_db_connection()
     cur = conn.cursor()
 
-    # Актуализируем баланс
     cur.execute("SELECT balance FROM users WHERE id = %s", (current_user['id'],))
     db_user = cur.fetchone()
     if db_user:
         current_user['balance'] = db_user['balance']
 
-    # Получаем купленные предметы пользователя
     cur.execute("SELECT item_emoji FROM inventory WHERE user_id = %s", (current_user['id'],))
     owned_items = [row['item_emoji'] for row in cur.fetchall()]
 
@@ -311,7 +301,6 @@ def buy_item():
     item_emoji = data.get('emoji')
     item_price = data.get('price')
 
-    # Ищем предмет в списке разрешенных цен
     target_item = next((item for item in SHOP_ITEMS if item['emoji'] == item_emoji and item['price'] == item_price), None)
     if not target_item:
         return jsonify({"success": False, "error": "Неверный предмет"}), 400
@@ -319,7 +308,6 @@ def buy_item():
     conn = get_db_connection()
     cur = conn.cursor()
 
-    # Проверяем баланс
     cur.execute("SELECT balance FROM users WHERE id = %s", (current_user['id'],))
     user_row = cur.fetchone()
     current_balance = user_row['balance'] if user_row else 0
@@ -329,19 +317,16 @@ def buy_item():
         conn.close()
         return jsonify({"success": False, "error": "Недостаточно GUN!"}), 400
 
-    # Проверяем, не куплен ли уже
     cur.execute("SELECT * FROM inventory WHERE user_id = %s AND item_emoji = %s", (current_user['id'], item_emoji))
     if cur.fetchone():
         cur.close()
         conn.close()
         return jsonify({"success": False, "error": "Предмет уже куплен!"}), 400
 
-    # Списываем баланс и добавляем в инвентарь
     cur.execute("UPDATE users SET balance = balance - %s WHERE id = %s", (item_price, current_user['id']))
     cur.execute("INSERT INTO inventory (user_id, item_emoji, item_price) VALUES (%s, %s, %s)", (current_user['id'], item_emoji, item_price))
     conn.commit()
 
-    # Получаем новый баланс
     cur.execute("SELECT balance FROM users WHERE id = %s", (current_user['id'],))
     new_balance = cur.fetchone()['balance']
 
@@ -359,7 +344,7 @@ def view_profile(user_id):
 
     conn = get_db_connection()
     cur = conn.cursor()
-    cur.execute("SELECT id, username, name, status, bio FROM users WHERE id = %s", (user_id,))
+    cur.execute("SELECT id, username, name, status, bio, is_admin FROM users WHERE id = %s", (user_id,))
     profile_user = cur.fetchone()
 
     cur.execute("SELECT * FROM blocks WHERE blocker_id = %s AND blocked_id = %s", (current_user['id'], user_id))
@@ -391,7 +376,7 @@ def settings():
         session['user']['name'] = new_name
         current_user['bio'] = new_bio
 
-    cur.execute("SELECT name, username, bio, balance FROM users WHERE id = %s", (current_user['id'],))
+    cur.execute("SELECT name, username, bio, balance, is_admin FROM users WHERE id = %s", (current_user['id'],))
     user_data = cur.fetchone()
     cur.close()
     conn.close()
@@ -430,21 +415,24 @@ def login():
         cur.execute("SELECT * FROM users WHERE username = %s", (username,))
         user = cur.fetchone()
         
-        if user:
+        if user and check_password_hash(user['password_hash'], password):
             cur.execute("UPDATE users SET status = 'В сети', last_active = CURRENT_TIMESTAMP WHERE id = %s", (user['id'],))
             conn.commit()
-
-        cur.close()
-        conn.close()
-
-        if user and check_password_hash(user['password_hash'], password):
+            
+            # Сохраняем is_admin в сессию при входе
             session['user'] = {
                 'id': user['id'],
                 'name': user['name'],
                 'username': user['username'],
-                'balance': user.get('balance', 0)
+                'balance': user.get('balance', 0),
+                'is_admin': user.get('is_admin', False)
             }
+            cur.close()
+            conn.close()
             return redirect(url_for('index'))
+            
+        cur.close()
+        conn.close()
         return "Неверный логин или пароль", 401
 
     return render_template('login.html')
@@ -465,7 +453,7 @@ def register():
             conn = get_db_connection()
             cur = conn.cursor()
             cur.execute(
-                "INSERT INTO users (name, username, password_hash, status, balance, bio, last_active) VALUES (%s, %s, %s, 'В сети', 0, '', CURRENT_TIMESTAMP)",
+                "INSERT INTO users (name, username, password_hash, status, balance, bio, last_active, is_admin) VALUES (%s, %s, %s, 'В сети', 0, '', CURRENT_TIMESTAMP, FALSE)",
                 (name, username, password_hash)
             )
             conn.commit()
@@ -492,7 +480,6 @@ def send_message():
     conn = get_db_connection()
     cur = conn.cursor()
     
-    # Проверка на блокировку
     cur.execute("SELECT * FROM blocks WHERE (blocker_id = %s AND blocked_id = %s) OR (blocker_id = %s AND blocked_id = %s)", 
                 (current_user['id'], recipient_id, recipient_id, current_user['id']))
     if cur.fetchone():
