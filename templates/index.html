@@ -56,6 +56,7 @@
             background: var(--sidebar-bg);
             display: flex;
             flex-direction: column;
+            flex-shrink: 0;
         }
 
         .sidebar-header {
@@ -140,6 +141,7 @@
             display: flex;
             align-items: center;
             justify-content: space-between;
+            flex-shrink: 0;
         }
 
         .messages-box {
@@ -149,7 +151,6 @@
             display: flex;
             flex-direction: column;
             gap: 10px;
-            padding-bottom: 20px; 
         }
 
         .message {
@@ -172,6 +173,7 @@
             align-self: flex-end;
         }
 
+        /* Исправлено для стабильной работы на мобильных устройствах */
         .chat-input-box {
             padding: 10px;
             background: var(--header-bg);
@@ -180,10 +182,6 @@
             align-items: center;
             gap: 8px;
             width: 100%;
-            position: sticky;
-            bottom: 0;
-            left: 0;
-            z-index: 5;
             flex-shrink: 0;
         }
 
