@@ -512,6 +512,21 @@
             localStorage.setItem('theme', newTheme);
         }
 
+        // Функция периодической проверки непрочитанных сообщений
+function checkUnreadNotifications() {
+    fetch('/unread_count')
+        .then(res => res.json())
+        .then(data => {
+            // Можно обновить общий тайтл страницы или глобальный индикатор
+            if (data.count > 0) {
+                document.title = `(${data.count}) Мессенджер`;
+            } else {
+                document.title = "Мессенджер";
+            }
+        });
+}
+setInterval(checkUnreadNotifications, 5000);
+
         function toggleEmojiPicker() {
             const picker = document.getElementById('emojiPicker');
             picker.style.display = picker.style.display === 'grid' ? 'none' : 'grid';
