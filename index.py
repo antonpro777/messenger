@@ -88,6 +88,109 @@ def index():
         is_blocked=is_blocked
     )
 
+@app.route('/transfer_gun', methods=['POST'])
+def transfer_gun():
+    current_user = session.get('user')
+    if not current_user:
+        return jsonify({"success": False, "error": "Unauthorized"}), 401
+
+    data = request.get_json()
+    recipient_id = data.get('recipient_id')
+    amount = int(data.get('amount', 0))
+
+    if amount <= 0 or not recipient_id:
+        return jsonify({"success": False, "error": "Неверное количество GUN"}), 400
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    # Проверяем баланс отправителя
+    cur.execute("SELECT balance, is_admin FROM users WHERE id = %s", (current_user['id'],))
+    sender_row = cur.fetchone()
+    if not sender_row or sender_row['balance'] < amount:
+        cur.close()
+        conn.close()
+        return jsonify({"success": False, "error": "Недостаточно GUN на балансе!"}), 400
+
+    # Проверяем получателя
+    cur.execute("SELECT id, is_admin FROM users WHERE id = %s", (recipient_id,))
+    recipient_row = cur.fetchone()
+    if not recipient_row:
+        cur.close()
+        conn.close()
+        return jsonify({"success": False, "error": "Получатель не найден"}), 404
+
+    # Логика 50% комиссии для админа:
+    # Если отправитель обычный пользователь, а получатель — админ, то админу идет вся сумма или бонус. 
+    # Если перевод между обычными пользователями, но в системе есть админы — 50% от суммы падает первому попавшемуся админу в качестве налога/комиссии.
+    tax_amount = int(amount * 0.5)
+    net_amount = amount - tax_amount
+
+    # Списываем всю сумму у отправителя
+    cur.execute("UPDATE users SET balance = balance - %s WHERE id = %s", (amount, current_user['id']))
+
+    # Зачисляем получателю чистую сумму (или полную, если получатель сам админ)
+    actual_recipient_gain = amount if recipient_row['is_admin'] else net_amount
+    cur.execute("UPDATE users SET balance = balance + %s WHERE id = %s", (actual_recipient_gain, recipient_id))
+
+    # Если получатель не админ, 50% (tax_amount) отправляем администратору системы
+    if not recipient_row['is_admin'] and tax_amount > 0:
+        cur.execute("SELECT id FROM users WHERE is_admin = TRUE LIMIT 1")
+        admin_row = cur.fetchone()
+        if admin_row:
+            cur.execute("UPDATE users SET balance = balance + %s WHERE id = %s", (tax_amount, admin_row['id']))
+
+    # Записываем сообщение в чат
+    transfer_text = f"🎁 Подарил(а) {amount} GUN 🪙 (Комиссия системы: {tax_amount})" if not recipient_row['is_admin'] else f"🎁 Подарил(а) {amount} GUN 🪙"
+    cur.execute(
+        "INSERT INTO messages (sender_id, recipient_id, content) VALUES (%s, %s, %s)",
+        (current_user['id'], recipient_id, transfer_text)
+    )
+
+    conn.commit()
+
+    cur.execute("SELECT balance FROM users WHERE id = %s", (current_user['id'],))
+    new_balance = cur.fetchone()['balance']
+
+    cur.close()
+    conn.close()
+
+    session['user']['balance'] = new_balance
+    return jsonify({"success": True, "new_balance": new_balance})
+
+@app.route('/admin/delete_user', methods=['POST'])
+def admin_delete_user():
+    current_user = session.get('user')
+    if not current_user:
+        return jsonify({"success": False, "error": "Unauthorized"}), 401
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    # Проверяем, действительно ли текущий пользователь — администратор
+    cur.execute("SELECT is_admin FROM users WHERE id = %s", (current_user['id'],))
+    user_row = cur.fetchone()
+    if not user_row or not user_row['is_admin']:
+        cur.close()
+        conn.close()
+        return jsonify({"success": False, "error": "Доступ запрещен"}), 403
+
+    data = request.get_json()
+    target_user_id = data.get('user_id')
+
+    if not target_user_id:
+        cur.close()
+        conn.close()
+        return jsonify({"success": False, "error": "Не указан ID пользователя"}), 400
+
+    # Удаляем пользователя (каскадно удалятся его сообщения и инвентарь благодаря foreign keys)
+    cur.execute("DELETE FROM users WHERE id = %s", (target_user_id,))
+    conn.commit()
+
+    cur.close()
+    conn.close()
+    return jsonify({"success": True})
+
 @app.route('/ping', methods=['POST'])
 def ping():
     current_user = session.get('user')
