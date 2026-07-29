@@ -801,6 +801,15 @@ setInterval(checkUnreadNotifications, 5000);
         window.addEventListener('beforeunload', () => {
             navigator.sendBeacon('/offline');
         });
+
+        if ('serviceWorker' in navigator && 'PushManager' in window) {
+    navigator.serviceWorker.register('/sw.js')
+    .then(function(swReg) {
+        console.log('Service Worker зарегистрирован', swReg);
+        // Здесь можно запросить разрешение: Notification.requestPermission()
+    });
+}
+        
     </script>
 </body>
 </html>
