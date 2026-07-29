@@ -554,6 +554,25 @@ setInterval(checkUnreadNotifications, 5000);
             input.focus();
         }
 
+        function deleteMessage(msgId) {
+    if (!confirm("Удалить это сообщение?")) return;
+    
+    fetch('/delete_message', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ msg_id: msgId })
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            const msgEl = document.getElementById(`msg-${msgId}`);
+            if (msgEl) {
+                msgEl.innerHTML = '<span style="color: gray; font-style: italic;">Сообщение удалено</span>';
+            }
+        }
+    });
+}
+
         function sendMessage(event) {
             event.preventDefault();
             const recipientId = document.getElementById('recipientId').value;
