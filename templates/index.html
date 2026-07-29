@@ -128,9 +128,9 @@
             flex-direction: column;
             background: var(--chat-bg);
             min-width: 0;
-            height: 100%; /* Жестко фиксируем высоту */
+            height: 100%;
             position: relative;
-            overflow: hidden; /* Предотвращаем появление лишнего скролла у всей области */
+            overflow: hidden;
         }
 
         .chat-header {
@@ -149,7 +149,6 @@
             display: flex;
             flex-direction: column;
             gap: 10px;
-            /* Важно: оставляем место внизу, чтобы сообщения не прятались под инпут */
             padding-bottom: 20px; 
         }
 
@@ -181,7 +180,7 @@
             align-items: center;
             gap: 8px;
             width: 100%;
-            position: sticky; /* Держим инпут внизу */
+            position: sticky;
             bottom: 0;
             left: 0;
             z-index: 5;
@@ -264,7 +263,6 @@
             font-size: 16px;
         }
 
-        /* Модальное окно для игры Змейка */
         .modal {
             display: none;
             position: fixed;
@@ -351,41 +349,43 @@
                 </div>
             </div>
 
-            <!-- Действия: Поиск, Настройки, Игра -->
+            <!-- Действия: Поиск, Настройки, Магазин, Игра -->
             <div class="sidebar-actions">
-    <a href="{{ url_for('search_users') }}" class="action-link">🔍 Поиск</a>
-    <a href="{{ url_for('settings') }}" class="action-link">⚙️ Настройки</a>
-    <a href="{{ url_for('shop') }}" class="action-link">🛒 Магазин</a>
-    <button onclick="openSnakeGame()" class="action-link" style="border:none; font: inherit; background: var(--chat-bg);">🎮 Змейка</button>
-</div>       
+                <a href="{{ url_for('search_users') }}" class="action-link">🔍 Поиск</a>
+                <a href="{{ url_for('settings') }}" class="action-link">⚙️ Настройки</a>
+                <a href="{{ url_for('shop') }}" class="action-link">🛒 Магазин</a>
+                <button onclick="openSnakeGame()" class="action-link" style="border:none; font: inherit; background: var(--chat-bg);">🎮 Змейка</button>
+            </div>       
 
             <div class="chat-header">
-                    {% if active_recipient %}
-                        <div style="display: flex; align-items: center;">
-                            <a href="{{ url_for('index') }}" class="back-btn">
-                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <path d="M19 12H5M12 19l-7-7 7-7"/>
-                                </svg>
-                                Назад
+                {% if active_recipient %}
+                    <div style="display: flex; align-items: center;">
+                        <a href="{{ url_for('index') }}" class="back-btn">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M19 12H5M12 19l-7-7 7-7"/>
+                            </svg>
+                            Назад
+                        </a>
+                        <div>
+                            <a href="{{ url_for('view_profile', user_id=active_recipient.id) }}" style="text-decoration: none; color: var(--text-color); display: flex; align-items: center; gap: 5px;">
+                                <h3 style="font-size: 15px; margin: 0; font-weight: 600;">{{ active_recipient.name }}</h3>
+                                {% if active_recipient.is_admin %}
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="#0088cc" title="Администратор">
+                                        <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+                                    </svg>
+                                {% endif %}
                             </a>
-                            <div>
-                                <a href="{{ url_for('view_profile', user_id=active_recipient.id) }}" style="text-decoration: none; color: var(--text-color); display: flex; align-items: center; gap: 5px;">
-                                    <h3 style="font-size: 15px; margin: 0; font-weight: 600;">{{ active_recipient.name }}</h3>
-                                    {% if active_recipient.is_admin %}
-                                        <img src="ССЫЛКА_НА_ВАШУ_ГАЛОЧКУ_С_GITHUB" alt="verified" style="width: 16px; height: 16px;" title="Администратор">
-                                    {% endif %}
-                                </a>
-                                <div style="font-size: 11px; color: gray;">@{{ active_recipient.username }}</div>
-                            </div>
+                            <div style="font-size: 11px; color: gray;">@{{ active_recipient.username }}</div>
                         </div>
+                    </div>
 
-                        {% if current_user.is_admin %}
-                            <button onclick="adminDeleteUser({{ active_recipient.id }})" style="background: #ff4d4d; color: white; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 500;">
-                                🗑️ Удалить аккаунт
-                            </button>
-                        {% endif %}
+                    {% if current_user.is_admin %}
+                        <button onclick="adminDeleteUser({{ active_recipient.id }})" style="background: #ff4d4d; color: white; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 500;">
+                            🗑️ Удалить аккаунт
+                        </button>
                     {% endif %}
-                </div>
+                {% endif %}
+            </div>
             
             <!-- Список активных диалогов -->
             <div class="user-list" id="userList">
@@ -416,10 +416,15 @@
                             Назад
                         </a>
                         <div>
-                            <a href="{{ url_for('view_profile', user_id=active_recipient.id) }}" style="text-decoration: none; color: var(--text-color);">
+                            <a href="{{ url_for('view_profile', user_id=active_recipient.id) }}" style="text-decoration: none; color: var(--text-color); display: flex; align-items: center; gap: 5px;">
                                 <h3 style="font-size: 15px; margin: 0; font-weight: 600;">{{ active_recipient.name }}</h3>
-                                <div style="font-size: 11px; color: gray;">@{{ active_recipient.username }}</div>
+                                {% if active_recipient.is_admin %}
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="#0088cc" title="Администратор">
+                                        <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+                                    </svg>
+                                {% endif %}
                             </a>
+                            <div style="font-size: 11px; color: gray;">@{{ active_recipient.username }}</div>
                         </div>
                     </div>
                 </div>
@@ -542,6 +547,24 @@
             });
         }
 
+        function adminDeleteUser(userId) {
+            if (!confirm("Вы уверены, что хотите удалить этого пользователя?")) return;
+            
+            fetch('/admin/delete_user', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ user_id: userId })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    window.location.href = '/';
+                } else {
+                    alert(data.error || "Ошибка удаления");
+                }
+            });
+        }
+
         // --- Логика мини-игры «Змейка» ---
         let snakeInterval = null;
         const canvas = document.getElementById('snakeCanvas');
@@ -598,7 +621,6 @@
         function gameLoop() {
             snakeInterval = requestAnimationFrame(gameLoop);
 
-            // ЧИСЛО НИЖЕ РЕГУЛИРУЕТ СКОРОСТЬ: чем оно больше, тем медленнее змейка (было 6, стало 12)
             if (++count < 12) { 
                 return;
             }
@@ -619,16 +641,13 @@
                 snake.cells.pop();
             }
 
-            // Рисуем еду
             ctx.fillStyle = 'red';
             ctx.fillRect(apple.x, apple.y, grid-1, grid-1);
 
-            // Рисуем змейку
             ctx.fillStyle = '#0088cc';
             snake.cells.forEach(function(cell, index) {
                 ctx.fillRect(cell.x, cell.y, grid-1, grid-1);
 
-                // Съел яблоко
                 if (cell.x === apple.x && cell.y === apple.y) {
                     snake.maxCells++;
                     score += 5;
@@ -637,7 +656,6 @@
                     apple.y = getRandomInt(0, 20) * grid;
                 }
 
-                // Столкновение с собой
                 for (let i = index + 1; i < snake.cells.length; i++) {
                     if (cell.x === snake.cells[i].x && cell.y === snake.cells[i].y) {
                         saveScore(score);
@@ -664,7 +682,6 @@
             });
         }
 
-        // Управление с клавиатуры (ПК)
         document.addEventListener('keydown', function(e) {
             if (document.getElementById('snakeModal').style.display !== 'flex') return;
 
@@ -679,7 +696,6 @@
             }
         });
 
-        // Управление с помощью сенсора / свайпов (Смартфоны и планшеты)
         let touchStartX = 0;
         let touchStartY = 0;
 
@@ -699,20 +715,17 @@
             let diffX = touchEndX - touchStartX;
             let diffY = touchEndY - touchStartY;
 
-            // Определяем, куда свайпнули (по горизонтали или вертикали было сильнее смещение)
             if (Math.abs(diffX) > Math.abs(diffY)) {
-                // Горизонтальный свайп
                 if (diffX > 30 && snake.dx === 0) {
-                    snake.dx = grid; snake.dy = 0; // Вправо
+                    snake.dx = grid; snake.dy = 0;
                 } else if (diffX < -30 && snake.dx === 0) {
-                    snake.dx = -grid; snake.dy = 0; // Влево
+                    snake.dx = -grid; snake.dy = 0;
                 }
             } else {
-                // Вертикальный свайп
                 if (diffY > 30 && snake.dy === 0) {
-                    snake.dy = grid; snake.dx = 0; // Вниз
+                    snake.dy = grid; snake.dx = 0;
                 } else if (diffY < -30 && snake.dy === 0) {
-                    snake.dy = -grid; snake.dx = 0; // Вверх
+                    snake.dy = -grid; snake.dx = 0;
                 }
             }
 
@@ -720,7 +733,6 @@
             touchStartY = 0;
         }, { passive: true });
 
-        // Отправка пинга для статуса «В сети»
         setInterval(() => {
             if (document.visibilityState === 'visible') {
                 fetch('/ping', { method: 'POST' });
