@@ -143,6 +143,14 @@ def get_new_messages():
         
     return jsonify({'messages': messages_data})
 
+@app.route('/privacy-policy')
+def privacy_policy():
+    return render_template('privacy_policy.html')
+
+@app.route('/terms')
+def terms():
+    return render_template('terms.html')
+
 @app.route('/mark_read', methods=['POST'])
 def mark_read():
     current_user = session.get('user')
