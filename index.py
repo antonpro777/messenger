@@ -89,6 +89,23 @@ def index():
         is_blocked=is_blocked
     )
 
+@app.route('/unread_count')
+def unread_count():
+    if 'user_id' not in session:
+        return jsonify({'count': 0})
+    
+    current_user_id = session['user_id']
+    
+    # Пример для sqlite3 / стандартного курсора:
+    cur = db.cursor() # или ваш объект курсора
+    cur.execute("SELECT COUNT(*) FROM messages WHERE recipient_id = ? AND is_read = 0", (current_user_id,))
+    row = cur.fetchone()
+    
+    # Безопасное извлечение значения
+    count = row[0] if row and row[0] is not None else 0
+    
+    return jsonify({'count': count})
+
 @app.route('/get_new_messages')
 def get_new_messages():
     if 'user_id' not in session:
@@ -140,6 +157,14 @@ def mark_read():
     conn.close()
     
     return jsonify({'success': True})
+
+@app.route('/privacy-policy')
+def privacy_policy():
+    return "Здесь будет текст Политики конфиденциальности AMAGON."
+
+@app.route('/terms')
+def terms():
+    return "Здесь будут Условия использования AMAGON."
 
 @app.route('/delete_message', methods=['POST'])
 def delete_message():
