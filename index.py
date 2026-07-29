@@ -22,7 +22,6 @@ def index():
     conn = get_db_connection()
     cur = conn.cursor()
 
-    # Актуализируем баланс, имя, bio и статус админа текущего пользователя из БД
     cur.execute("SELECT balance, name, bio, is_admin FROM users WHERE id = %s", (current_user['id'],))
     db_user = cur.fetchone()
     if db_user:
@@ -31,11 +30,9 @@ def index():
         current_user['bio'] = db_user['bio']
         current_user['is_admin'] = db_user['is_admin']
 
-    # Обновляем свой собственный статус на 'В сети' при открытии/обновлении главной страницы
     cur.execute("UPDATE users SET status = 'В сети', last_active = CURRENT_TIMESTAMP WHERE id = %s", (current_user['id'],))
     conn.commit()
 
-    # Если последняя активность была больше 15 секунд назад, автоматически меняем статус пользователя на 'Не в сети'
     cur.execute("""
         UPDATE users 
         SET status = 'Не в сети' 
@@ -43,7 +40,6 @@ def index():
     """)
     conn.commit()
 
-    # Список чатов: только те, с кем есть переписка и кто не в блоке
     cur.execute("""
         SELECT DISTINCT u.id, u.username, u.name, u.status, u.is_admin 
         FROM users u
@@ -64,7 +60,6 @@ def index():
         active_recipient = cur.fetchone()
 
         if active_recipient:
-            # Проверяем, заблокирован ли пользователь
             cur.execute("SELECT * FROM blocks WHERE blocker_id = %s AND blocked_id = %s", (current_user['id'], active_recipient_id))
             if cur.fetchone():
                 is_blocked = True
@@ -143,6 +138,7 @@ def get_new_messages():
         
     return jsonify({'messages': messages_data})
 
+# Единые маршруты для политики и условий (возвращают HTML-шаблоны)
 @app.route('/privacy-policy')
 def privacy_policy():
     return render_template('privacy_policy.html')
@@ -172,14 +168,6 @@ def mark_read():
     conn.close()
     
     return jsonify({'success': True})
-
-@app.route('/privacy-policy')
-def privacy_policy():
-    return "Здесь будет текст Политики конфиденциальности AMAGON."
-
-@app.route('/terms')
-def terms():
-    return "Здесь будут Условия использования AMAGON."
 
 @app.route('/delete_message', methods=['POST'])
 def delete_message():
@@ -550,7 +538,6 @@ def login():
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
-        # Проверяем согласие с правилами (чекбокс)
         if 'terms_agree' not in request.form:
             return "Ошибка: Вы должны согласиться с Политикой конфиденциальности и Условиями использования.", 400
 
