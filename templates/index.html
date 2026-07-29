@@ -364,7 +364,21 @@
                 <a href="{{ url_for('settings') }}" class="action-link">⚙️ Настройки</a>
                 <a href="{{ url_for('shop') }}" class="action-link">🛒 Магазин</a>
                 <button onclick="openSnakeGame()" class="action-link" style="border:none; font: inherit; background: var(--chat-bg);">🎮 Змейка</button>
-            </div>       
+            </div>      
+
+            <div class="message {% if msg.sender_id == current_user.id %}outgoing{% else %}incoming{% endif %}" id="msg-{{ msg.id }}">
+    {% if msg.is_deleted %}
+        <span style="color: gray; font-style: italic;">Сообщение удалено</span>
+    {% else %}
+        {{ msg.content }}
+        <div style="font-size: 10px; text-align: right; margin-top: 2px; color: {% if msg.is_read %}#0088cc{% else %}gray{% endif %};">
+            {% if msg.sender_id == current_user.id %}
+                <span onclick="deleteMessage({{ msg.id }})" style="cursor: pointer; margin-right: 5px;" title="Удалить">🗑️</span>
+                <span>{% if msg.is_read %}✓✓{% else %}✓{% endif %}</span>
+            {% endif %}
+        </div>
+    {% endif %}
+</div>
 
             <div class="chat-header">
                 {% if active_recipient %}
@@ -414,6 +428,7 @@
         </div>
 
         <!-- Область чата -->
+        
         <div class="chat-area">
             {% if active_recipient %}
                 <div class="chat-header">
