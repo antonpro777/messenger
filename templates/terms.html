@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Условия использования — AMAGON</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; line-height: 1.6; background: #eef2f5; color: #333; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; background: #fff; padding: 40px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        h1 { font-size: 24px; color: #0088cc; margin-bottom: 20px; }
+        h2 { font-size: 18px; margin-top: 25px; }
+        p, li { font-size: 14px; color: #555; }
+        .warning { background: #fff3f3; border-left: 4px solid #ff4d4d; padding: 15px; margin: 15px 0; font-size: 14px; color: #900; }
+        .back { margin-top: 30px; display: inline-block; color: #0088cc; text-decoration: none; font-size: 14px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Условия использования AMAGON</h1>
+        <p>Регистрируясь в мессенджере AMAGON, вы автоматически соглашаетесь с нижеследующими правилами платформы.</p>
+        
+        <h2>1. Правила поведения</h2>
+        <p>Пользователи обязуются соблюдать уважение в общении, не распространять спам, вредоносное ПО и не нарушать работу сервиса.</p>
+        
+        <h2>2. Система наказаний и снос аккаунтов</h2>
+        <p>Администрация оставляет за собой право применять штрафные санкции за нарушение правил сервиса (включая временный мут или перманентное удаление/снос аккаунта).</p>
+        
+        <div class="warning">
+            <b>Важное предупреждение о валюте GON:</b> При сносе (удалении) аккаунта за нарушения правил или по иным причинам, вся накопленная или купленная внутриигровая валюта <b>GON</b>, а также приобретенное имущество <b>не возмещаются и не подлежат восстановлению</b>.
+        </div>
+
+        <a href="{{ url_for('register') }}" class="back">← Вернуться к регистрации</a>
+    </div>
+</body>
+</html>
