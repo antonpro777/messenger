@@ -89,48 +89,56 @@ def index():
         is_blocked=is_blocked
     )
 
-@app.route('/unread_count')
+@app.route('/unread_count', methods=['GET'])
 def unread_count():
-    if 'user_id' not in session:
+    current_user = session.get('user')
+    if not current_user:
         return jsonify({'count': 0})
-    
-    current_user_id = session['user_id']
-    
-    # Пример для sqlite3 / стандартного курсора:
-    cur = db.cursor() # или ваш объект курсора
-    cur.execute("SELECT COUNT(*) FROM messages WHERE recipient_id = ? AND is_read = 0", (current_user_id,))
+        
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT COUNT(*) FROM messages 
+        WHERE recipient_id = %s AND is_read = FALSE AND is_deleted = FALSE
+    """, (current_user['id'],))
     row = cur.fetchone()
-    
-    # Безопасное извлечение значения
-    count = row[0] if row and row[0] is not None else 0
+    count = row['count'] if row and 'count' in row else 0
+    cur.close()
+    conn.close()
     
     return jsonify({'count': count})
 
 @app.route('/get_new_messages')
 def get_new_messages():
-    if 'user_id' not in session:
+    current_user = session.get('user')
+    if not current_user:
         return jsonify({'error': 'Unauthorized'}), 401
     
     recipient_id = request.args.get('recipient_id', type=int)
     last_id = request.args.get('last_id', default=0, type=int)
-    current_user_id = session['user_id']
+    current_user_id = current_user['id']
     
-    # Запрос к базе данных для поиска сообщений новее last_id между текущим пользователем и recipient_id
-    new_messages = Message.query.filter(
-        Message.id > last_id,
-        ((Message.sender_id == current_user_id) & (Message.recipient_id == recipient_id)) |
-        ((Message.sender_id == recipient_id) & (Message.recipient_id == current_user_id))
-    ).order_by(Message.id.asc()).all()
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT id, sender_id, recipient_id, content, is_deleted, is_read 
+        FROM messages 
+        WHERE id > %s AND ((sender_id = %s AND recipient_id = %s) OR (sender_id = %s AND recipient_id = %s))
+        ORDER BY id ASC
+    """, (last_id, current_user_id, recipient_id, recipient_id, current_user_id))
+    new_messages = cur.fetchall()
+    cur.close()
+    conn.close()
     
     messages_data = []
     for msg in new_messages:
         messages_data.append({
-            'id': msg.id,
-            'sender_id': msg.sender_id,
-            'recipient_id': msg.recipient_id,
-            'content': msg.content,
-            'is_deleted': msg.is_deleted,
-            'is_read': msg.is_read
+            'id': msg['id'],
+            'sender_id': msg['sender_id'],
+            'recipient_id': msg['recipient_id'],
+            'content': msg['content'],
+            'is_deleted': msg['is_deleted'],
+            'is_read': msg['is_read']
         })
         
     return jsonify({'messages': messages_data})
@@ -146,7 +154,6 @@ def mark_read():
     
     conn = get_db_connection()
     cur = conn.cursor()
-    # Помечаем все сообщения от собеседника как прочитанные
     cur.execute("""
         UPDATE messages 
         SET is_read = TRUE 
@@ -177,7 +184,6 @@ def delete_message():
     
     conn = get_db_connection()
     cur = conn.cursor()
-    # Удалять (скрывать) может только отправитель
     cur.execute("""
         UPDATE messages 
         SET is_deleted = TRUE 
@@ -188,24 +194,6 @@ def delete_message():
     conn.close()
     
     return jsonify({'success': True})
-
-@app.route('/unread_count', methods=['GET'])
-def unread_count():
-    current_user = session.get('user')
-    if not current_user:
-        return jsonify({'count': 0})
-        
-    conn = get_db_connection()
-    cur = conn.cursor()
-    cur.execute("""
-        SELECT COUNT(*) FROM messages 
-        WHERE recipient_id = %s AND is_read = FALSE AND is_deleted = FALSE
-    """, (current_user['id'],))
-    count = cur.fetchone()[0]
-    cur.close()
-    conn.close()
-    
-    return jsonify({'count': count})
 
 @app.route('/transfer_gun', methods=['POST'])
 def transfer_gun():
@@ -240,14 +228,11 @@ def transfer_gun():
     tax_amount = int(amount * 0.5)
     net_amount = amount - tax_amount
 
-    # Списываем всю сумму у отправителя
     cur.execute("UPDATE users SET balance = balance - %s WHERE id = %s", (amount, current_user['id']))
 
-    # Зачисляем получателю
     actual_recipient_gain = amount if recipient_row['is_admin'] else net_amount
     cur.execute("UPDATE users SET balance = balance + %s WHERE id = %s", (actual_recipient_gain, recipient_id))
 
-    # Если получатель не админ, 50% комиссии отправляем первому попавшемуся админу
     if not recipient_row['is_admin'] and tax_amount > 0:
         cur.execute("SELECT id FROM users WHERE is_admin = TRUE LIMIT 1")
         admin_row = cur.fetchone()
@@ -537,7 +522,6 @@ def login():
             cur.execute("UPDATE users SET status = 'В сети', last_active = CURRENT_TIMESTAMP WHERE id = %s", (user['id'],))
             conn.commit()
             
-            # Сохраняем is_admin в сессию при входе
             session['user'] = {
                 'id': user['id'],
                 'name': user['name'],
@@ -558,6 +542,10 @@ def login():
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
+        # Проверяем согласие с правилами (чекбокс)
+        if 'terms_agree' not in request.form:
+            return "Ошибка: Вы должны согласиться с Политикой конфиденциальности и Условиями использования.", 400
+
         name = request.form.get('name')
         username = request.form.get('username')
         password = request.form.get('password')
