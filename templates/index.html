@@ -360,30 +360,30 @@
 </div>       
 
             <div class="chat-header">
-                    <div style="display: flex; align-items: center;">
-                        <a href="{{ url_for('index') }}" class="back-btn">
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M19 12H5M12 19l-7-7 7-7"/>
-                            </svg>
-                            Назад
-                        </a>
-                        <div>
-                            <a href="{{ url_for('view_profile', user_id=active_recipient.id) }}" style="text-decoration: none; color: var(--text-color); display: flex; align-items: center; gap: 5px;">
-                                <h3 style="font-size: 15px; margin: 0; font-weight: 600;">{{ active_recipient.name }}</h3>
-                                {% if active_recipient.is_admin %}
-                                    <!-- Галочка администратора (замените src на ссылку вашей картинки с GitHub) -->
-                                    <img src="verif.png" alt="verified" style="width: 16px; height: 16px;" title="Администратор">
-                                {% endif %}
+                    {% if active_recipient %}
+                        <div style="display: flex; align-items: center;">
+                            <a href="{{ url_for('index') }}" class="back-btn">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M19 12H5M12 19l-7-7 7-7"/>
+                                </svg>
+                                Назад
                             </a>
-                            <div style="font-size: 11px; color: gray;">@{{ active_recipient.username }}</div>
+                            <div>
+                                <a href="{{ url_for('view_profile', user_id=active_recipient.id) }}" style="text-decoration: none; color: var(--text-color); display: flex; align-items: center; gap: 5px;">
+                                    <h3 style="font-size: 15px; margin: 0; font-weight: 600;">{{ active_recipient.name }}</h3>
+                                    {% if active_recipient.is_admin %}
+                                        <img src="ССЫЛКА_НА_ВАШУ_ГАЛОЧКУ_С_GITHUB" alt="verified" style="width: 16px; height: 16px;" title="Администратор">
+                                    {% endif %}
+                                </a>
+                                <div style="font-size: 11px; color: gray;">@{{ active_recipient.username }}</div>
+                            </div>
                         </div>
-                    </div>
 
-                    <!-- Кнопка удаления пользователя для администраторов -->
-                    {% if current_user.is_admin %}
-                        <button onclick="adminDeleteUser({{ active_recipient.id }})" style="background: #ff4d4d; color: white; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 500;">
-                            🗑️ Удалить аккаунт
-                        </button>
+                        {% if current_user.is_admin %}
+                            <button onclick="adminDeleteUser({{ active_recipient.id }})" style="background: #ff4d4d; color: white; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 500;">
+                                🗑️ Удалить аккаунт
+                            </button>
+                        {% endif %}
                     {% endif %}
                 </div>
             
