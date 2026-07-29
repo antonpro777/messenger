@@ -89,6 +89,35 @@ def index():
         is_blocked=is_blocked
     )
 
+@app.route('/get_new_messages')
+def get_new_messages():
+    if 'user_id' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    recipient_id = request.args.get('recipient_id', type=int)
+    last_id = request.args.get('last_id', default=0, type=int)
+    current_user_id = session['user_id']
+    
+    # Запрос к базе данных для поиска сообщений новее last_id между текущим пользователем и recipient_id
+    new_messages = Message.query.filter(
+        Message.id > last_id,
+        ((Message.sender_id == current_user_id) & (Message.recipient_id == recipient_id)) |
+        ((Message.sender_id == recipient_id) & (Message.recipient_id == current_user_id))
+    ).order_by(Message.id.asc()).all()
+    
+    messages_data = []
+    for msg in new_messages:
+        messages_data.append({
+            'id': msg.id,
+            'sender_id': msg.sender_id,
+            'recipient_id': msg.recipient_id,
+            'content': msg.content,
+            'is_deleted': msg.is_deleted,
+            'is_read': msg.is_read
+        })
+        
+    return jsonify({'messages': messages_data})
+
 @app.route('/mark_read', methods=['POST'])
 def mark_read():
     current_user = session.get('user')
