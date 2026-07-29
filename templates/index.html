@@ -522,6 +522,8 @@
             input.focus();
         }
 
+        
+
         function deleteMessage(msgId) {
             if (!confirm("Удалить это сообщение?")) return;
             
@@ -540,6 +542,75 @@
                 }
             });
         }
+
+        // Функция для периодической проверки новых сообщений в активном чате
+let lastMsgId = null;
+
+// Инициализируем id последнего сообщения при загрузке страницы
+document.addEventListener("DOMContentLoaded", () => {
+    const messagesBox = document.getElementById('messagesBox');
+    if (messagesBox) {
+        messagesBox.scrollTop = messagesBox.scrollHeight;
+        
+        // Находим id последнего сообщения на странице, если оно есть
+        const messageElements = messagesBox.querySelectorAll('.message');
+        if (messageElements.length > 0) {
+            const lastEl = messageElements[messageElements.length - 1];
+            const match = lastEl.id.match(/msg-(\d+)/);
+            if (match) {
+                lastMsgId = parseInt(match[1]);
+            }
+        }
+    }
+});
+
+// Функция опроса сервера каждые 3 секунды
+setInterval(() => {
+    const recipientInput = document.getElementById('recipientId');
+    if (!recipientInput) return; // Если чат не открыт, ничего не делаем
+
+    const recipientId = recipientInput.value;
+
+    fetch(`/get_new_messages?recipient_id=${recipientId}&last_id=${lastMsgId || 0}`)
+        .then(res => res.json())
+        .then(data => {
+            if (data.messages && data.messages.length > 0) {
+                const messagesBox = document.getElementById('messagesBox');
+                
+                data.messagesforEach(msg => {
+                    // Проверяем, нет ли уже такого сообщения в DOM
+                    if (document.getElementById(`msg-${msg.id}`)) return;
+
+                    const msgDiv = document.createElement('div');
+                    // Определяем класс в зависимости от того, кто отправитель
+                    const isOutgoing = msg.sender_id == document.getElementById('currentUserId')?.value; // или сверьте с текущим ID
+                    // Упрощенная проверка: если сообщение пришло от активного получателя, оно incoming
+                    msgDiv.className = `message ${msg.sender_id == recipientId ? 'incoming' : 'outgoing'}`;
+                    msgDiv.id = `msg-${msg.id}`;
+
+                    if (msg.is_deleted) {
+                        msgDiv.innerHTML = '<span style="color: gray; font-style: italic;">Сообщение удалено</span>';
+                    } else {
+                        let inner = `${msg.content}`;
+                        if (msg.sender_id != recipientId) {
+                            // Исходящее
+                            inner += `<div style="font-size: 10px; text-align: right; margin-top: 2px; color: gray;">
+                                <span onclick="deleteMessage(${msg.id})" style="cursor: pointer; margin-right: 5px;" title="Удалить">🗑️</span>
+                                <span>✓</span>
+                            </div>`;
+                        }
+                        msgDiv.innerHTML = inner;
+                    }
+
+                    messagesBox.appendChild(msgDiv);
+                    lastMsgId = msg.id;
+                });
+
+                messagesBox.scrollTop = messagesBox.scrollHeight;
+            }
+        })
+        .catch(err => console.log('Ошибка получения сообщений:', err));
+}, 3000);
 
         function sendMessage(event) {
             event.preventDefault();
