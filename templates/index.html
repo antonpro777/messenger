@@ -128,6 +128,9 @@
             flex-direction: column;
             background: var(--chat-bg);
             min-width: 0;
+            height: 100%; /* Жестко фиксируем высоту */
+            position: relative;
+            overflow: hidden; /* Предотвращаем появление лишнего скролла у всей области */
         }
 
         .chat-header {
@@ -146,6 +149,8 @@
             display: flex;
             flex-direction: column;
             gap: 10px;
+            /* Важно: оставляем место внизу, чтобы сообщения не прятались под инпут */
+            padding-bottom: 20px; 
         }
 
         .message {
@@ -176,7 +181,10 @@
             align-items: center;
             gap: 8px;
             width: 100%;
-            position: relative;
+            position: sticky; /* Держим инпут внизу */
+            bottom: 0;
+            left: 0;
+            z-index: 5;
             flex-shrink: 0;
         }
 
