@@ -6,9 +6,15 @@ import re
 import uuid
 import psycopg2
 from psycopg2.extras import RealDictCursor
+from supabase import create_client, Client
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'super_secret_key_for_dev')
+
+# Инициализация клиента Supabase (убедитесь, что переменные окружения SUPABASE_URL и SUPABASE_KEY заданы, либо пропишите их напрямую)
+SUPABASE_URL = os.environ.get('SUPABASE_URL', 'ВАШ_SUPABASE_URL')
+SUPABASE_KEY = os.environ.get('SUPABASE_KEY', 'ВАШ_SUPABASE_ANON_KEY')
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 def get_db_connection():
     db_url = "postgresql://postgres.prelemswcdgnxyajajbs:292997746Raa@aws-0-eu-west-3.pooler.supabase.com:6543/postgres"
@@ -454,16 +460,23 @@ def settings():
         new_bio = request.form.get('bio')
         avatar_file = request.files.get('avatar')
 
+        avatar_url = current_user.get('avatar_url', '')
+
         if avatar_file and avatar_file.filename != '':
             filename = secure_filename(avatar_file.filename)
             file_ext = filename.rsplit('.', 1)[1].lower() if '.' in filename else 'png'
             unique_filename = f"avatar_{current_user['id']}_{uuid.uuid4()}.{file_ext}"
             
-            upload_folder = 'static/uploads'
-            os.makedirs(upload_folder, exist_ok=True)
-            filepath = os.path.join(upload_folder, unique_filename)
-            avatar_file.save(filepath)
-            avatar_url = f"/{filepath}"
+            file_bytes = avatar_file.read()
+            try:
+                supabase.storage.from_('uploads').upload(
+                    path=unique_filename,
+                    file=file_bytes,
+                    file_options={"content-type": avatar_file.content_type}
+                )
+                avatar_url = supabase.storage.from_('uploads').get_public_url(unique_filename)
+            except Exception as e:
+                print(f"Ошибка загрузки аватарки в Supabase: {e}")
 
             cur.execute("UPDATE users SET name = %s, bio = %s, avatar_url = %s WHERE id = %s", 
                         (new_name, new_bio, avatar_url, current_user['id']))
@@ -589,11 +602,16 @@ def send_message():
         file_ext = filename.rsplit('.', 1)[1].lower() if '.' in filename else ''
         unique_filename = f"msg_{uuid.uuid4()}_{filename}"
         
-        upload_folder = 'static/uploads'
-        os.makedirs(upload_folder, exist_ok=True)
-        filepath = os.path.join(upload_folder, unique_filename)
-        file.save(filepath)
-        file_url = f"/{filepath}"
+        file_bytes = file.read()
+        try:
+            supabase.storage.from_('uploads').upload(
+                path=unique_filename,
+                file=file_bytes,
+                file_options={"content-type": file.content_type}
+            )
+            file_url = supabase.storage.from_('uploads').get_public_url(unique_filename)
+        except Exception as e:
+            print(f"Ошибка загрузки файла в Supabase: {e}")
 
         if file_ext in ['png', 'jpg', 'jpeg', 'gif']:
             file_type = 'image'
