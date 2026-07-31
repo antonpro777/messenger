@@ -1,7 +1,9 @@
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify
 from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.utils import secure_filename
 import os
 import re
+import uuid
 import psycopg2
 from psycopg2.extras import RealDictCursor
 
@@ -22,13 +24,14 @@ def index():
     conn = get_db_connection()
     cur = conn.cursor()
 
-    cur.execute("SELECT balance, name, bio, is_admin FROM users WHERE id = %s", (current_user['id'],))
+    cur.execute("SELECT balance, name, bio, is_admin, avatar_url FROM users WHERE id = %s", (current_user['id'],))
     db_user = cur.fetchone()
     if db_user:
         current_user['balance'] = db_user['balance']
         current_user['name'] = db_user['name']
         current_user['bio'] = db_user['bio']
         current_user['is_admin'] = db_user['is_admin']
+        current_user['avatar_url'] = db_user.get('avatar_url', '')
 
     cur.execute("UPDATE users SET status = 'В сети', last_active = CURRENT_TIMESTAMP WHERE id = %s", (current_user['id'],))
     conn.commit()
@@ -41,7 +44,7 @@ def index():
     conn.commit()
 
     cur.execute("""
-        SELECT DISTINCT u.id, u.username, u.name, u.status, u.is_admin 
+        SELECT DISTINCT u.id, u.username, u.name, u.status, u.is_admin, u.avatar_url 
         FROM users u
         JOIN messages m ON (u.id = m.sender_id OR u.id = m.recipient_id)
         WHERE (m.sender_id = %s OR m.recipient_id = %s) AND u.id != %s
@@ -56,7 +59,7 @@ def index():
     is_blocked = False
 
     if active_recipient_id:
-        cur.execute("SELECT id, username, name, status, bio, is_admin FROM users WHERE id = %s", (active_recipient_id,))
+        cur.execute("SELECT id, username, name, status, bio, is_admin, avatar_url FROM users WHERE id = %s", (active_recipient_id,))
         active_recipient = cur.fetchone()
 
         if active_recipient:
@@ -116,7 +119,7 @@ def get_new_messages():
     conn = get_db_connection()
     cur = conn.cursor()
     cur.execute("""
-        SELECT id, sender_id, recipient_id, content, is_deleted, is_read 
+        SELECT id, sender_id, recipient_id, content, is_deleted, is_read, file_url, file_type 
         FROM messages 
         WHERE id > %s AND ((sender_id = %s AND recipient_id = %s) OR (sender_id = %s AND recipient_id = %s))
         ORDER BY id ASC
@@ -133,12 +136,13 @@ def get_new_messages():
             'recipient_id': msg['recipient_id'],
             'content': msg['content'],
             'is_deleted': msg['is_deleted'],
-            'is_read': msg['is_read']
+            'is_read': msg['is_read'],
+            'file_url': msg['file_url'],
+            'file_type': msg['file_type']
         })
         
     return jsonify({'messages': messages_data})
 
-# Единые маршруты для политики и условий (возвращают HTML-шаблоны)
 @app.route('/privacy-policy')
 def privacy_policy():
     return render_template('privacy_policy.html')
@@ -324,7 +328,7 @@ def search_users():
         conn = get_db_connection()
         cur = conn.cursor()
         cur.execute("""
-            SELECT id, username, name, status, bio, is_admin FROM users 
+            SELECT id, username, name, status, bio, is_admin, avatar_url FROM users 
             WHERE (username ILIKE %s OR name ILIKE %s) AND id != %s
         """, (f"%{query}%", f"%{query}%", current_user['id']))
         users = cur.fetchall()
@@ -334,38 +338,17 @@ def search_users():
     return render_template('search.html', current_user=current_user, users=users, query=query)
 
 SHOP_ITEMS = [
-    {"emoji": "🍎", "price": 30},
-    {"emoji": "🍌", "price": 50},
-    {"emoji": "🍕", "price": 60},
-    {"emoji": "🍔", "price": 70},
-    {"emoji": "🍩", "price": 80},
-    {"emoji": "🍪", "price": 90},
-    {"emoji": "🍫", "price": 100},
-    {"emoji": "🍬", "price": 120},
-    {"emoji": "👑", "price": 150},
-    {"emoji": "💎", "price": 200},
-    {"emoji": "💍", "price": 250},
-    {"emoji": "🚀", "price": 300},
-    {"emoji": "🏎️", "price": 350},
-    {"emoji": "🎸", "price": 400},
-    {"emoji": "🏆", "price": 500},
-    {"emoji": "🎯", "price": 555},
-    {"emoji": "🎲", "price": 600},
-    {"emoji": "🔥", "price": 666},
-    {"emoji": "⚡", "price": 700},
-    {"emoji": "⭐", "price": 777},
-    {"emoji": "🔮", "price": 800},
-    {"emoji": "🧿", "price": 888},
-    {"emoji": "💡", "price": 900},
-    {"emoji": "💻", "price": 1000},
-    {"emoji": "📱", "price": 1100},
-    {"emoji": "⌚", "price": 1200},
-    {"emoji": "🛸", "price": 1337},
-    {"emoji": "🛡️", "price": 1488},
-    {"emoji": "⚔️", "price": 1555},
-    {"emoji": "🧪", "price": 1600},
-    {"emoji": "🧬", "price": 1700},
-    {"emoji": "🗿", "price": 1800}
+    {"emoji": "🍎", "price": 30}, {"emoji": "🍌", "price": 50}, {"emoji": "🍕", "price": 60},
+    {"emoji": "🍔", "price": 70}, {"emoji": "🍩", "price": 80}, {"emoji": "🍪", "price": 90},
+    {"emoji": "🍫", "price": 100}, {"emoji": "🍬", "price": 120}, {"emoji": "👑", "price": 150},
+    {"emoji": "💎", "price": 200}, {"emoji": "💍", "price": 250}, {"emoji": "🚀", "price": 300},
+    {"emoji": "🏎️", "price": 350}, {"emoji": "🎸", "price": 400}, {"emoji": "🏆", "price": 500},
+    {"emoji": "🎯", "price": 555}, {"emoji": "🎲", "price": 600}, {"emoji": "🔥", "price": 666},
+    {"emoji": "⚡", "price": 700}, {"emoji": "⭐", "price": 777}, {"emoji": "🔮", "price": 800},
+    {"emoji": "🧿", "price": 888}, {"emoji": "💡", "price": 900}, {"emoji": "💻", "price": 1000},
+    {"emoji": "📱", "price": 1100}, {"emoji": "⌚", "price": 1200}, {"emoji": "🛸", "price": 1337},
+    {"emoji": "🛡️", "price": 1488}, {"emoji": "⚔️", "price": 1555}, {"emoji": "🧪", "price": 1600},
+    {"emoji": "🧬", "price": 1700}, {"emoji": "🗿", "price": 1800}
 ]
 
 @app.route('/shop')
@@ -443,7 +426,7 @@ def view_profile(user_id):
 
     conn = get_db_connection()
     cur = conn.cursor()
-    cur.execute("SELECT id, username, name, status, bio, is_admin FROM users WHERE id = %s", (user_id,))
+    cur.execute("SELECT id, username, name, status, bio, is_admin, avatar_url FROM users WHERE id = %s", (user_id,))
     profile_user = cur.fetchone()
 
     cur.execute("SELECT * FROM blocks WHERE blocker_id = %s AND blocked_id = %s", (current_user['id'], user_id))
@@ -469,13 +452,31 @@ def settings():
     if request.method == 'POST':
         new_name = request.form.get('name')
         new_bio = request.form.get('bio')
+        avatar_file = request.files.get('avatar')
 
-        cur.execute("UPDATE users SET name = %s, bio = %s WHERE id = %s", (new_name, new_bio, current_user['id']))
+        if avatar_file and avatar_file.filename != '':
+            filename = secure_filename(avatar_file.filename)
+            file_ext = filename.rsplit('.', 1)[1].lower() if '.' in filename else 'png'
+            unique_filename = f"avatar_{current_user['id']}_{uuid.uuid4()}.{file_ext}"
+            
+            upload_folder = 'static/uploads'
+            os.makedirs(upload_folder, exist_ok=True)
+            filepath = os.path.join(upload_folder, unique_filename)
+            avatar_file.save(filepath)
+            avatar_url = f"/{filepath}"
+
+            cur.execute("UPDATE users SET name = %s, bio = %s, avatar_url = %s WHERE id = %s", 
+                        (new_name, new_bio, avatar_url, current_user['id']))
+            session['user']['avatar_url'] = avatar_url
+        else:
+            cur.execute("UPDATE users SET name = %s, bio = %s WHERE id = %s", 
+                        (new_name, new_bio, current_user['id']))
+            
         conn.commit()
         session['user']['name'] = new_name
         current_user['bio'] = new_bio
 
-    cur.execute("SELECT name, username, bio, balance, is_admin FROM users WHERE id = %s", (current_user['id'],))
+    cur.execute("SELECT name, username, bio, balance, is_admin, avatar_url FROM users WHERE id = %s", (current_user['id'],))
     user_data = cur.fetchone()
     cur.close()
     conn.close()
@@ -523,7 +524,8 @@ def login():
                 'name': user['name'],
                 'username': user['username'],
                 'balance': user.get('balance', 0),
-                'is_admin': user.get('is_admin', False)
+                'is_admin': user.get('is_admin', False),
+                'avatar_url': user.get('avatar_url', '')
             }
             cur.close()
             conn.close()
@@ -554,7 +556,7 @@ def register():
             conn = get_db_connection()
             cur = conn.cursor()
             cur.execute(
-                "INSERT INTO users (name, username, password_hash, status, balance, bio, last_active, is_admin) VALUES (%s, %s, %s, 'В сети', 0, '', CURRENT_TIMESTAMP, FALSE)",
+                "INSERT INTO users (name, username, password_hash, status, balance, bio, last_active, is_admin, avatar_url) VALUES (%s, %s, %s, 'В сети', 0, '', CURRENT_TIMESTAMP, FALSE, '')",
                 (name, username, password_hash)
             )
             conn.commit()
@@ -573,10 +575,30 @@ def send_message():
         return "Unauthorized", 401
 
     recipient_id = request.form.get('recipient_id')
-    content = request.form.get('content')
+    content = request.form.get('content', '')
+    file = request.files.get('file')
 
-    if not recipient_id or not content:
+    if not recipient_id or (not content and not file):
         return "Bad Request", 400
+
+    file_url = ''
+    file_type = 'text'
+
+    if file and file.filename != '':
+        filename = secure_filename(file.filename)
+        file_ext = filename.rsplit('.', 1)[1].lower() if '.' in filename else ''
+        unique_filename = f"msg_{uuid.uuid4()}_{filename}"
+        
+        upload_folder = 'static/uploads'
+        os.makedirs(upload_folder, exist_ok=True)
+        filepath = os.path.join(upload_folder, unique_filename)
+        file.save(filepath)
+        file_url = f"/{filepath}"
+
+        if file_ext in ['png', 'jpg', 'jpeg', 'gif']:
+            file_type = 'image'
+        else:
+            file_type = 'document'
 
     conn = get_db_connection()
     cur = conn.cursor()
@@ -589,8 +611,8 @@ def send_message():
         return "Blocked", 403
 
     cur.execute(
-        "INSERT INTO messages (sender_id, recipient_id, content) VALUES (%s, %s, %s)",
-        (current_user['id'], recipient_id, content)
+        "INSERT INTO messages (sender_id, recipient_id, content, file_url, file_type) VALUES (%s, %s, %s, %s, %s)",
+        (current_user['id'], recipient_id, content, file_url, file_type)
     )
     conn.commit()
     cur.close()
