@@ -12,8 +12,8 @@ app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'super_secret_key_for_dev')
 
 # Инициализация клиента Supabase (убедитесь, что переменные окружения SUPABASE_URL и SUPABASE_KEY заданы, либо пропишите их напрямую)
-SUPABASE_URL = os.environ.get('SUPABASE_URL', 'ВАШ_SUPABASE_URL')
-SUPABASE_KEY = os.environ.get('SUPABASE_KEY', 'ВАШ_SUPABASE_ANON_KEY')
+SUPABASE_URL = os.environ.get('SUPABASE_URL', 'https://prelemswcdgnxyajajbs.supabase.co')
+SUPABASE_KEY = os.environ.get('SUPABASE_KEY', 'sb_secret_CGwUm1YmQxmbFOp38-cS9w_ejLuxpB-')
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 def get_db_connection():
