@@ -87,17 +87,6 @@
             gap: 8px;
         }
 
-        .unread-badge {
-            background-color: #ff3b30;
-            color: white;
-            font-size: 11px;
-            font-weight: bold;
-            padding: 2px 6px;
-            border-radius: 10px;
-            display: inline-block;
-            margin-left: auto;
-        }
-
         .action-link {
             flex: 1;
             text-align: center;
@@ -125,6 +114,7 @@
             padding: 12px 15px;
             display: flex;
             align-items: center;
+            gap: 10px;
             text-decoration: none;
             color: var(--text-color);
             border-bottom: 1px solid var(--sidebar-border);
@@ -132,6 +122,20 @@
 
         .user-item:hover {
             background: var(--hover-bg);
+        }
+
+        .user-avatar-small {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            object-fit: cover;
+            background: #0088cc;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            flex-shrink: 0;
         }
 
         .chat-area {
@@ -195,7 +199,7 @@
             flex-shrink: 0;
         }
 
-        .chat-input-box input {
+        .chat-input-box input[type="text"] {
             flex: 1;
             min-width: 0;
             padding: 10px 14px;
@@ -313,8 +317,7 @@
                 width: 100%;
                 height: 100%;
                 position: absolute;
-                top: 0;
-                left: 0;
+                top: 0; left: 0;
                 z-index: {% if active_recipient %}1{% else %}2{% endif %};
                 display: {% if active_recipient %}none{% else %}flex{% endif %};
             }
@@ -322,8 +325,7 @@
                 width: 100%;
                 height: 100%;
                 position: absolute;
-                top: 0;
-                left: 0;
+                top: 0; left: 0;
                 z-index: {% if active_recipient %}2{% else %}1{% endif %};
                 display: {% if active_recipient %}flex{% else %}none{% endif %};
             }
@@ -346,10 +348,17 @@
         <!-- Сайдбар -->
         <div class="sidebar">
             <div class="sidebar-header">
-                <div class="user-info-block">
-                    <strong>{{ current_user.name }}</strong>
-                    <div style="font-size: 12px; color: gray;">@{{ current_user.username }}</div>
-                    <div class="balance-badge">🪙 <span id="userBalance">{{ current_user.balance }}</span> GUN</div>
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    {% if current_user.avatar_url %}
+                        <img src="{{ current_user.avatar_url }}" class="user-avatar-small">
+                    {% else %}
+                        <div class="user-avatar-small">👤</div>
+                    {% endif %}
+                    <div class="user-info-block">
+                        <strong>{{ current_user.name }}</strong>
+                        <div style="font-size: 12px; color: gray;">@{{ current_user.username }}</div>
+                        <div class="balance-badge">🪙 <span id="userBalance">{{ current_user.balance }}</span> GUN</div>
+                    </div>
                 </div>
                 <div style="display: flex; gap: 8px; align-items: center;">
                     <button class="theme-btn" onclick="toggleTheme()" title="Сменить тему">💡</button>
@@ -357,7 +366,6 @@
                 </div>
             </div>
 
-            <!-- Действия: Поиск, Настройки, Магазин, Игра -->
             <div class="sidebar-actions">
                 <a href="{{ url_for('search_users') }}" class="action-link">🔍 Поиск</a>
                 <a href="{{ url_for('settings') }}" class="action-link">⚙️ Настройки</a>
@@ -365,10 +373,14 @@
                 <button onclick="openSnakeGame()" class="action-link" style="border:none; font: inherit; background: var(--chat-bg);">🎮 Змейка</button>
             </div>      
 
-            <!-- Список активных диалогов -->
             <div class="user-list" id="userList">
                 {% for user in users %}
                     <a href="{{ url_for('index', to=user.id) }}" class="user-item">
+                        {% if user.avatar_url %}
+                            <img src="{{ user.avatar_url }}" class="user-avatar-small">
+                        {% else %}
+                            <div class="user-avatar-small">👤</div>
+                        {% endif %}
                         <div>
                             <div style="font-weight: 500;">{{ user.name }}</div>
                             <div style="font-size: 12px; color: {% if user.status == 'В сети' %}green{% else %}gray{% endif %};">@{{ user.username }} • {{ user.status }}</div>
@@ -393,16 +405,23 @@
                             </svg>
                             Назад
                         </a>
-                        <div>
-                            <a href="{{ url_for('view_profile', user_id=active_recipient.id) }}" style="text-decoration: none; color: var(--text-color); display: flex; align-items: center; gap: 5px;">
-                                <h3 style="font-size: 15px; margin: 0; font-weight: 600;">{{ active_recipient.name }}</h3>
-                                {% if active_recipient.is_admin %}
-                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="#0088cc" title="Администратор">
-                                        <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
-                                    </svg>
-                                {% endif %}
-                            </a>
-                            <div style="font-size: 11px; color: gray;">@{{ active_recipient.username }}</div>
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            {% if active_recipient.avatar_url %}
+                                <img src="{{ active_recipient.avatar_url }}" class="user-avatar-small">
+                            {% else %}
+                                <div class="user-avatar-small">👤</div>
+                            {% endif %}
+                            <div>
+                                <a href="{{ url_for('view_profile', user_id=active_recipient.id) }}" style="text-decoration: none; color: var(--text-color); display: flex; align-items: center; gap: 5px;">
+                                    <h3 style="font-size: 15px; margin: 0; font-weight: 600;">{{ active_recipient.name }}</h3>
+                                    {% if active_recipient.is_admin %}
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="#0088cc" title="Администратор">
+                                            <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+                                        </svg>
+                                    {% endif %}
+                                </a>
+                                <div style="font-size: 11px; color: gray;">@{{ active_recipient.username }}</div>
+                            </div>
                         </div>
                     </div>
 
@@ -419,7 +438,16 @@
                             {% if msg.is_deleted %}
                                 <span style="color: gray; font-style: italic;">Сообщение удалено</span>
                             {% else %}
-                                {{ msg.content }}
+                                {% if msg.file_url %}
+                                    {% if msg.file_type == 'image' %}
+                                        <img src="{{ msg.file_url }}" style="max-width: 100%; border-radius: 8px; margin-bottom: 5px; display: block;">
+                                    {% else %}
+                                        <a href="{{ msg.file_url }}" target="_blank" style="display: block; color: var(--text-color); text-decoration: underline; margin-bottom: 5px;">📄 Скачать файл</a>
+                                    {% endif %}
+                                {% endif %}
+                                {% if msg.content %}
+                                    <div>{{ msg.content }}</div>
+                                {% endif %}
                                 <div style="font-size: 10px; text-align: right; margin-top: 2px; color: {% if msg.is_read %}#0088cc{% else %}gray{% endif %};">
                                     {% if msg.sender_id == current_user.id %}
                                         <span onclick="deleteMessage({{ msg.id }})" style="cursor: pointer; margin-right: 5px;" title="Удалить">🗑️</span>
@@ -441,6 +469,9 @@
                         
                         <button type="button" class="emoji-btn" onclick="toggleEmojiPicker()">😀</button>
                         
+                        <label for="fileInput" style="cursor: pointer; font-size: 20px; padding: 0 4px;" title="Прикрепить файл">📎</label>
+                        <input type="file" id="fileInput" style="display: none;" onchange="handleFileSelect(this)">
+
                         <div class="emoji-picker" id="emojiPicker">
                             <span onclick="addEmoji('😊')">😊</span>
                             <span onclick="addEmoji('😂')">😂</span>
@@ -454,7 +485,7 @@
                             <span onclick="addEmoji('😢')">😢</span>
                         </div>
 
-                        <input type="text" id="messageInput" placeholder="Написать сообщение..." autocomplete="off" required>
+                        <input type="text" id="messageInput" placeholder="Написать сообщение..." autocomplete="off">
                         <button type="submit">Отправить</button>
                     </form>
                 {% endif %}
@@ -522,8 +553,6 @@
             input.focus();
         }
 
-        
-
         function deleteMessage(msgId) {
             if (!confirm("Удалить это сообщение?")) return;
             
@@ -543,103 +572,107 @@
             });
         }
 
-        // Функция для периодической проверки новых сообщений в активном чате
-let lastMsgId = null;
+        let lastMsgId = null;
 
-// Инициализируем id последнего сообщения при загрузке страницы
-document.addEventListener("DOMContentLoaded", () => {
-    const messagesBox = document.getElementById('messagesBox');
-    if (messagesBox) {
-        messagesBox.scrollTop = messagesBox.scrollHeight;
-        
-        // Находим id последнего сообщения на странице, если оно есть
-        const messageElements = messagesBox.querySelectorAll('.message');
-        if (messageElements.length > 0) {
-            const lastEl = messageElements[messageElements.length - 1];
-            const match = lastEl.id.match(/msg-(\d+)/);
-            if (match) {
-                lastMsgId = parseInt(match[1]);
+        document.addEventListener("DOMContentLoaded", () => {
+            const messagesBox = document.getElementById('messagesBox');
+            if (messagesBox) {
+                messagesBox.scrollTop = messagesBox.scrollHeight;
+                const messageElements = messagesBox.querySelectorAll('.message');
+                if (messageElements.length > 0) {
+                    const lastEl = messageElements[messageElements.length - 1];
+                    const match = lastEl.id.match(/msg-(\d+)/);
+                    if (match) {
+                        lastMsgId = parseInt(match[1]);
+                    }
+                }
+            }
+        });
+
+        setInterval(() => {
+            const recipientInput = document.getElementById('recipientId');
+            if (!recipientInput) return;
+
+            const recipientId = recipientInput.value;
+
+            fetch(`/get_new_messages?recipient_id=${recipientId}&last_id=${lastMsgId || 0}`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.messages && data.messages.length > 0) {
+                        const messagesBox = document.getElementById('messagesBox');
+                        
+                        data.messages.forEach(msg => {
+                            if (document.getElementById(`msg-${msg.id}`)) return;
+
+                            const msgDiv = document.createElement('div');
+                            msgDiv.className = `message ${msg.sender_id == recipientId ? 'incoming' : 'outgoing'}`;
+                            msgDiv.id = `msg-${msg.id}`;
+
+                            if (msg.is_deleted) {
+                                msgDiv.innerHTML = '<span style="color: gray; font-style: italic;">Сообщение удалено</span>';
+                            } else {
+                                let inner = '';
+                                if (msg.file_url) {
+                                    if (msg.file_type === 'image') {
+                                        inner += `<img src="${msg.file_url}" style="max-width: 100%; border-radius: 8px; margin-bottom: 5px; display: block;">`;
+                                    } else {
+                                        inner += `<a href="${msg.file_url}" target="_blank" style="display: block; color: var(--text-color); text-decoration: underline; margin-bottom: 5px;">📄 Скачать файл</a>`;
+                                    }
+                                }
+                                if (msg.content) {
+                                    inner += `<div>${msg.content}</div>`;
+                                }
+                                
+                                if (msg.sender_id != recipientId) {
+                                    inner += `<div style="font-size: 10px; text-align: right; margin-top: 2px; color: gray;">
+                                        <span onclick="deleteMessage(${msg.id})" style="cursor: pointer; margin-right: 5px;" title="Удалить">🗑️</span>
+                                        <span>✓</span>
+                                    </div>`;
+                                }
+                                msgDiv.innerHTML = inner;
+                            }
+
+                            messagesBox.appendChild(msgDiv);
+                            lastMsgId = msg.id;
+                        });
+
+                        messagesBox.scrollTop = messagesBox.scrollHeight;
+                    }
+                })
+                .catch(err => console.log('Ошибка получения сообщений:', err));
+        }, 3000);
+
+        function handleFileSelect(input) {
+            if (input.files && input.files[0]) {
+                document.getElementById('messageInput').placeholder = `Файл выбран: ${input.files[0].name}`;
             }
         }
-    }
-});
-
-// Функция опроса сервера каждые 3 секунды
-setInterval(() => {
-    const recipientInput = document.getElementById('recipientId');
-    if (!recipientInput) return; // Если чат не открыт, ничего не делаем
-
-    const recipientId = recipientInput.value;
-
-    fetch(`/get_new_messages?recipient_id=${recipientId}&last_id=${lastMsgId || 0}`)
-        .then(res => res.json())
-        .then(data => {
-            if (data.messages && data.messages.length > 0) {
-                const messagesBox = document.getElementById('messagesBox');
-                
-                data.messagesforEach(msg => {
-                    // Проверяем, нет ли уже такого сообщения в DOM
-                    if (document.getElementById(`msg-${msg.id}`)) return;
-
-                    const msgDiv = document.createElement('div');
-                    // Определяем класс в зависимости от того, кто отправитель
-                    const isOutgoing = msg.sender_id == document.getElementById('currentUserId')?.value; // или сверьте с текущим ID
-                    // Упрощенная проверка: если сообщение пришло от активного получателя, оно incoming
-                    msgDiv.className = `message ${msg.sender_id == recipientId ? 'incoming' : 'outgoing'}`;
-                    msgDiv.id = `msg-${msg.id}`;
-
-                    if (msg.is_deleted) {
-                        msgDiv.innerHTML = '<span style="color: gray; font-style: italic;">Сообщение удалено</span>';
-                    } else {
-                        let inner = `${msg.content}`;
-                        if (msg.sender_id != recipientId) {
-                            // Исходящее
-                            inner += `<div style="font-size: 10px; text-align: right; margin-top: 2px; color: gray;">
-                                <span onclick="deleteMessage(${msg.id})" style="cursor: pointer; margin-right: 5px;" title="Удалить">🗑️</span>
-                                <span>✓</span>
-                            </div>`;
-                        }
-                        msgDiv.innerHTML = inner;
-                    }
-
-                    messagesBox.appendChild(msgDiv);
-                    lastMsgId = msg.id;
-                });
-
-                messagesBox.scrollTop = messagesBox.scrollHeight;
-            }
-        })
-        .catch(err => console.log('Ошибка получения сообщений:', err));
-}, 3000);
 
         function sendMessage(event) {
             event.preventDefault();
             const recipientId = document.getElementById('recipientId').value;
             const input = document.getElementById('messageInput');
+            const fileInput = document.getElementById('fileInput');
             const content = input.value.trim();
+            const file = fileInput.files[0];
 
-            if (!content) return;
+            if (!content && !file) return;
 
-            let formData = new URLSearchParams();
+            let formData = new FormData();
             formData.append('recipient_id', recipientId);
             formData.append('content', content);
+            if (file) {
+                formData.append('file', file);
+            }
 
             fetch('/send', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                },
                 body: formData
             }).then(response => {
                 if (response.ok) {
-                    const messagesBox = document.getElementById('messagesBox');
-                    const msgDiv = document.createElement('div');
-                    msgDiv.className = 'message outgoing';
-                    msgDiv.textContent = content;
-                    messagesBox.appendChild(msgDiv);
-                    
                     input.value = '';
-                    messagesBox.scrollTop = messagesBox.scrollHeight;
+                    fileInput.value = '';
+                    input.placeholder = "Написать сообщение...";
                 }
             });
         }
@@ -669,19 +702,8 @@ setInterval(() => {
         let count = 0;
         let score = 0;
 
-        let snake = {
-            x: 150,
-            y: 150,
-            dx: grid,
-            dy: 0,
-            cells: [],
-            maxCells: 4
-        };
-
-        let apple = {
-            x: 90,
-            y: 90
-        };
+        let snake = { x: 150, y: 150, dx: grid, dy: 0, cells: [], maxCells: 4 };
+        let apple = { x: 90, y: 90 };
 
         function getRandomInt(min, max) {
             return Math.floor(Math.random() * (max - min)) + min;
@@ -717,9 +739,7 @@ setInterval(() => {
         function gameLoop() {
             snakeInterval = requestAnimationFrame(gameLoop);
 
-            if (++count < 12) { 
-                return;
-            }
+            if (++count < 12) { return; }
             count = 0;
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
@@ -792,43 +812,6 @@ setInterval(() => {
             }
         });
 
-        let touchStartX = 0;
-        let touchStartY = 0;
-
-        canvas.addEventListener('touchstart', function(e) {
-            if (e.touches.length === 1) {
-                touchStartX = e.touches[0].clientX;
-                touchStartY = e.touches[0].clientY;
-            }
-        }, { passive: true });
-
-        canvas.addEventListener('touchend', function(e) {
-            if (!touchStartX || !touchStartY) return;
-
-            let touchEndX = e.changedTouches[0].clientX;
-            let touchEndY = e.changedTouches[0].clientY;
-
-            let diffX = touchEndX - touchStartX;
-            let diffY = touchEndY - touchStartY;
-
-            if (Math.abs(diffX) > Math.abs(diffY)) {
-                if (diffX > 30 && snake.dx === 0) {
-                    snake.dx = grid; snake.dy = 0;
-                } else if (diffX < -30 && snake.dx === 0) {
-                    snake.dx = -grid; snake.dy = 0;
-                }
-            } else {
-                if (diffY > 30 && snake.dy === 0) {
-                    snake.dy = grid; snake.dx = 0;
-                } else if (diffY < -30 && snake.dy === 0) {
-                    snake.dy = -grid; snake.dx = 0;
-                }
-            }
-
-            touchStartX = 0;
-            touchStartY = 0;
-        }, { passive: true });
-
         setInterval(() => {
             if (document.visibilityState === 'visible') {
                 fetch('/ping', { method: 'POST' });
@@ -841,10 +824,7 @@ setInterval(() => {
         });
 
         if ('serviceWorker' in navigator && 'PushManager' in window) {
-            navigator.serviceWorker.register('/sw.js')
-            .then(function(swReg) {
-                console.log('Service Worker зарегистрирован', swReg);
-            });
+            navigator.serviceWorker.register('/sw.js');
         }
     </script>
 </body>
