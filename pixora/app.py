@@ -199,7 +199,7 @@ def register():
         username = request.form.get("username", "").strip().lower()
         email = request.form.get("email", "").strip().lower()
         password = request.form.get("password", "")
-        if not (3 <= len(username) <= 30) or not username.replace("_", "").isalnum():
+        if not (3 <= len(username) <= 30) or not username.isascii() or not username.replace("_", "").isalnum():
             flash("Имя пользователя: 3–30 символов, латинские буквы, цифры и _.", "error")
         elif len(password) < 8:
             flash("Пароль должен содержать не менее 8 символов.", "error")
