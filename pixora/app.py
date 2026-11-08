@@ -66,6 +66,7 @@ class User(UserMixin, db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     posts = db.relationship("Post", backref="author", lazy="dynamic", cascade="all, delete-orphan")
     likes = db.relationship("Like", backref="user", lazy="dynamic", cascade="all, delete-orphan")
+    stories = db.relationship("Story", backref="author", lazy="dynamic", cascade="all, delete-orphan")
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
@@ -84,6 +85,23 @@ class Post(db.Model):
 
     def liked_by(self, user):
         return bool(user.is_authenticated and Like.query.filter_by(user_id=user.id, post_id=self.id).first())
+
+
+class Story(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    media = db.Column(db.String(500), nullable=False)
+    caption = db.Column(db.String(180), default="")
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, index=True)
+
+
+class Comment(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    body = db.Column(db.String(500), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, index=True)
+    post_id = db.Column(db.Integer, db.ForeignKey("post.id"), nullable=False, index=True)
+    author = db.relationship("User")
 
 
 class Like(db.Model):
@@ -117,7 +135,7 @@ def public_css(filename):
 
 @app.context_processor
 def inject_globals():
-    return {"site_name": "Pixora", "media_url": media_url}
+    return {"site_name": "Pixora", "media_url": media_url, "post_comments": lambda post_id: Comment.query.filter_by(post_id=post_id).order_by(Comment.created_at.asc()).all()}
 
 
 def allowed_file(filename):
@@ -195,7 +213,8 @@ def remove_image(value):
 def index():
     page = request.args.get("page", 1, type=int)
     pagination = Post.query.order_by(Post.created_at.desc()).paginate(page=page, per_page=12, error_out=False)
-    return render_template("feed.html", posts=pagination.items, pagination=pagination)
+    stories = Story.query.order_by(Story.created_at.desc()).limit(40).all()
+    return render_template("feed.html", posts=pagination.items, pagination=pagination, stories=stories)
 
 
 @app.route("/explore")
@@ -342,6 +361,7 @@ def profile(username):
         "profile.html", profile_user=user, posts=posts,
         followers_count=followers_count, following_count=following_count,
         is_following=is_following,
+        stories=user.stories.order_by(Story.created_at.desc()).all(),
     )
 
 
@@ -358,6 +378,68 @@ def toggle_follow(username):
         db.session.add(Follow(follower_id=current_user.id, followed_id=user.id))
     db.session.commit()
     return redirect(url_for("profile", username=user.username))
+
+
+
+@app.route("/stories/create", methods=["POST"])
+@login_required
+def create_story():
+    try:
+        media = save_image(request.files.get("photo"))
+        story = Story(media=media, caption=request.form.get("caption", "").strip()[:180], author=current_user)
+        db.session.add(story)
+        db.session.commit()
+        flash("История опубликована!", "success")
+    except ValueError as exc:
+        flash(str(exc), "error")
+    return redirect(request.referrer or url_for("index"))
+
+
+@app.route("/stories/<int:story_id>")
+def view_story(story_id):
+    story = db.get_or_404(Story, story_id)
+    return render_template("story.html", story=story)
+
+
+@app.route("/u/<username>/<kind>")
+def connections(username, kind):
+    user = User.query.filter_by(username=username.lower()).first_or_404()
+    if kind == "followers":
+        ids = db.session.query(Follow.follower_id).filter_by(followed_id=user.id).subquery()
+        people = User.query.filter(User.id.in_(ids)).order_by(User.username.asc()).all()
+        heading = "Подписчики"
+    elif kind == "following":
+        ids = db.session.query(Follow.followed_id).filter_by(follower_id=user.id).subquery()
+        people = User.query.filter(User.id.in_(ids)).order_by(User.username.asc()).all()
+        heading = "Подписки"
+    else:
+        abort(404)
+    return render_template("connections.html", profile_user=user, people=people, heading=heading)
+
+
+@app.route("/post/<int:post_id>/comment", methods=["POST"])
+@login_required
+def add_comment(post_id):
+    post = db.get_or_404(Post, post_id)
+    body = request.form.get("body", "").strip()
+    if not body or len(body) > 500:
+        flash("Комментарий должен содержать от 1 до 500 символов.", "error")
+    else:
+        db.session.add(Comment(body=body, user_id=current_user.id, post_id=post.id))
+        db.session.commit()
+    return redirect(request.referrer or url_for("index"))
+
+
+@app.route("/api/revision")
+def api_revision():
+    stamps = [
+        db.session.query(func.max(Post.created_at)).scalar(),
+        db.session.query(func.max(Story.created_at)).scalar(),
+        db.session.query(func.max(Like.created_at)).scalar(),
+        db.session.query(func.max(Follow.created_at)).scalar(),
+        db.session.query(func.max(Comment.created_at)).scalar(),
+    ]
+    return {"revision": "|".join(x.isoformat() if x else "" for x in stamps)}
 
 
 @app.route("/settings", methods=["GET", "POST"])
