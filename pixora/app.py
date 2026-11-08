@@ -247,8 +247,8 @@ def login():
 @login_required
 def logout():
     logout_user()
-    flash("Вы вышли из аккаунта.", "info")
-    return redirect(url_for("index"))
+    flash("Вы вышли из аккаунта. Теперь можно войти в другой или создать новый.", "info")
+    return redirect(url_for("login"))
 
 
 @app.route("/upload", methods=["GET", "POST"])
