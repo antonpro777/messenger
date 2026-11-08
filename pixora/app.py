@@ -138,7 +138,7 @@ def save_image(file):
     ext = secure_filename(file.filename).rsplit(".", 1)[1].lower()
     filename = f"{uuid.uuid4().hex}.{ext}"
     storage_url = os.environ.get("SUPABASE_URL", "").rstrip("/")
-    storage_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY") or os.environ.get("SUPABASE_SECRET_KEY")
+    storage_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
     if storage_url and storage_key:
         content_type = (file.mimetype or "").lower()
         allowed_types = {"image/jpeg", "image/png", "image/gif", "image/webp"}
