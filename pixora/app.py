@@ -1,5 +1,6 @@
 import os
 import uuid
+import requests
 from datetime import datetime
 from pathlib import Path
 
@@ -71,6 +72,17 @@ class Like(db.Model):
     __table_args__ = (db.UniqueConstraint("user_id", "post_id", name="unique_user_post_like"),)
 
 
+class Follow(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    follower_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+    followed_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    __table_args__ = (
+        db.UniqueConstraint("follower_id", "followed_id", name="unique_follow_pair"),
+        db.CheckConstraint("follower_id <> followed_id", name="no_self_follow"),
+    )
+
+
 @login_manager.user_loader
 def load_user(user_id):
     return db.session.get(User, int(user_id))
@@ -78,11 +90,19 @@ def load_user(user_id):
 
 @app.context_processor
 def inject_globals():
-    return {"site_name": "Pixora"}
+    return {"site_name": "Pixora", "media_url": media_url}
 
 
 def allowed_file(filename):
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
+
+
+def media_url(value):
+    if not value:
+        return ""
+    if value.startswith(("http://", "https://")):
+        return value
+    return url_for("static", filename="uploads/" + Path(value).name)
 
 
 def save_image(file):
@@ -90,15 +110,46 @@ def save_image(file):
         raise ValueError("Поддерживаются JPG, PNG, GIF и WEBP.")
     ext = secure_filename(file.filename).rsplit(".", 1)[1].lower()
     filename = f"{uuid.uuid4().hex}.{ext}"
+    storage_url = os.environ.get("SUPABASE_URL", "").rstrip("/")
+    storage_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+    if storage_url and storage_key:
+        response = requests.post(
+            f"{storage_url}/storage/v1/object/pixora-uploads/{filename}",
+            headers={
+                "Authorization": f"Bearer {storage_key}",
+                "apikey": storage_key,
+                "Content-Type": file.mimetype or "application/octet-stream",
+                "x-upsert": "true",
+            },
+            data=file.stream.read(),
+            timeout=30,
+        )
+        if not response.ok:
+            raise ValueError("Не удалось загрузить фото в облачное хранилище. Проверьте настройки Supabase.")
+        return f"{storage_url}/storage/v1/object/public/pixora-uploads/{filename}"
+    if os.environ.get("VERCEL"):
+        raise ValueError("Для загрузки фото нужно настроить SUPABASE_URL и SUPABASE_SERVICE_ROLE_KEY в Vercel.")
     file.save(UPLOAD_DIR / filename)
     return filename
 
 
-def remove_image(filename):
-    if filename:
-        path = UPLOAD_DIR / Path(filename).name
-        if path.exists():
-            path.unlink()
+def remove_image(value):
+    if not value:
+        return
+    storage_url = os.environ.get("SUPABASE_URL", "").rstrip("/")
+    storage_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+    if storage_url and storage_key and value.startswith(storage_url + "/storage/v1/object/"):
+        filename = value.rsplit("/", 1)[-1]
+        requests.delete(
+            f"{storage_url}/storage/v1/object/pixora-uploads",
+            headers={"Authorization": f"Bearer {storage_key}", "apikey": storage_key},
+            json={"prefixes": [filename]},
+            timeout=20,
+        )
+        return
+    path = UPLOAD_DIR / Path(value).name
+    if path.exists():
+        path.unlink()
 
 
 @app.route("/")
@@ -231,7 +282,31 @@ def delete_post(post_id):
 def profile(username):
     user = User.query.filter_by(username=username.lower()).first_or_404()
     posts = user.posts.order_by(Post.created_at.desc()).all()
-    return render_template("profile.html", profile_user=user, posts=posts)
+    followers_count = Follow.query.filter_by(followed_id=user.id).count()
+    following_count = Follow.query.filter_by(follower_id=user.id).count()
+    is_following = bool(current_user.is_authenticated and Follow.query.filter_by(
+        follower_id=current_user.id, followed_id=user.id
+    ).first())
+    return render_template(
+        "profile.html", profile_user=user, posts=posts,
+        followers_count=followers_count, following_count=following_count,
+        is_following=is_following,
+    )
+
+
+@app.route("/follow/<username>", methods=["POST"])
+@login_required
+def toggle_follow(username):
+    user = User.query.filter_by(username=username.lower()).first_or_404()
+    if user.id == current_user.id:
+        abort(400)
+    relation = Follow.query.filter_by(follower_id=current_user.id, followed_id=user.id).first()
+    if relation:
+        db.session.delete(relation)
+    else:
+        db.session.add(Follow(follower_id=current_user.id, followed_id=user.id))
+    db.session.commit()
+    return redirect(url_for("profile", username=user.username))
 
 
 @app.route("/settings", methods=["GET", "POST"])
