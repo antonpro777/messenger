@@ -1,0 +1,6 @@
+{% extends "base.html" %}
+{% block title %}Изменить публикацию{% endblock %}
+{% block content %}
+<div class="form-page"><div class="eyebrow">ТВОЙ КОНТЕНТ</div><h1>Измени <span>публикацию.</span></h1><form method="post" enctype="multipart/form-data" class="panel form-stack"><img class="edit-preview" src="{{ url_for('static', filename='uploads/' ~ post.image) }}" alt="Текущее фото"><label>Подпись<textarea name="caption" rows="4" maxlength="500">{{ post.caption }}</textarea></label><label>Заменить фото<input type="file" name="photo" accept="image/*"></label><button class="button button-primary full" type="submit">Сохранить изменения</button></form>
+<form method="post" action="{{ url_for('delete_post', post_id=post.id) }}" onsubmit="return confirm('Удалить публикацию?')"><button class="button button-danger full" type="submit">Удалить публикацию</button></form></div>
+{% endblock %}
