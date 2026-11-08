@@ -1,0 +1,6 @@
+{% extends "base.html" %}
+{% block title %}{{ heading }} · @{{ profile_user.username }}{% endblock %}
+{% block content %}
+<div class="page-heading"><div><div class="eyebrow">@{{ profile_user.username }}</div><h1>{{ heading }}</h1><p>{{ people|length }} аккаунтов</p></div><a class="button button-ghost" href="{{ url_for('profile', username=profile_user.username) }}">← К профилю</a></div>
+<div class="connections-list">{% for person in people %}<a class="connection-row" href="{{ url_for('profile', username=person.username) }}"><span class="avatar">{% if person.avatar %}<img src="{{ media_url(person.avatar) }}" alt="">{% else %}{{ person.display_name[:1]|upper }}{% endif %}</span><span><b>{{ person.display_name }}</b><small>@{{ person.username }}</small></span></a>{% else %}<div class="empty-state panel"><h2>Пока никого нет</h2><p>Этот список пока пуст.</p></div>{% endfor %}</div>
+{% endblock %}
