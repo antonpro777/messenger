@@ -1,0 +1,5 @@
+{% extends "base.html" %}
+{% block title %}Настройки профиля{% endblock %}
+{% block content %}
+<div class="form-page"><div class="eyebrow">ТВОЯ СТРАНИЦА</div><h1>Настрой <span>профиль.</span></h1><form method="post" enctype="multipart/form-data" class="panel form-stack"><label>Отображаемое имя<input name="display_name" maxlength="60" required value="{{ current_user.display_name }}"></label><label>О себе<textarea name="bio" rows="4" maxlength="180" placeholder="Пара слов о тебе...">{{ current_user.bio }}</textarea></label><label>Аватар<input type="file" name="avatar" accept="image/*"></label><button class="button button-primary full" type="submit">Сохранить профиль</button></form></div>
+{% endblock %}
