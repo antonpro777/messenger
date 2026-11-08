@@ -17,20 +17,28 @@ UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 app = Flask(__name__)
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "local-development-only-change-me")
-if os.environ.get("VERCEL") and (not os.environ.get("SECRET_KEY") or not os.environ.get("DATABASE_URL")):
-    raise RuntimeError("Set SECRET_KEY and DATABASE_URL in Vercel Project Environment Variables.")
-database_url = os.environ.get("DATABASE_URL", f"sqlite:///{BASE_DIR / 'pixora.db'}")
+if os.environ.get("VERCEL") and not os.environ.get("SECRET_KEY"):
+    raise RuntimeError("Set SECRET_KEY in Vercel Project Environment Variables.")
+# Temporary preview fallback only: Vercel's /tmp SQLite database is not persistent.
+database_url = os.environ.get(
+    "DATABASE_URL",
+    "sqlite:////tmp/pixora-preview.db" if os.environ.get("VERCEL") else f"sqlite:///{BASE_DIR / 'pixora.db'}",
+)
 if database_url.startswith("postgres://"):
     database_url = database_url.replace("postgres://", "postgresql://", 1)
 if database_url.startswith("postgresql://"):
     database_url = database_url.replace("postgresql://", "postgresql+psycopg://", 1)
 app.config["SQLALCHEMY_DATABASE_URI"] = database_url
-app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
-    "pool_pre_ping": True,
-    "pool_size": 1,
-    "max_overflow": 0,
-    "connect_args": {"prepare_threshold": None},
-}
+app.config["SQLALCHEMY_ENGINE_OPTIONS"] = (
+    {
+        "pool_pre_ping": True,
+        "pool_size": 1,
+        "max_overflow": 0,
+        "connect_args": {"prepare_threshold": None},
+    }
+    if database_url.startswith("postgresql")
+    else {}
+)
 app.config["SESSION_COOKIE_HTTPONLY"] = True
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 app.config["SESSION_COOKIE_SECURE"] = bool(os.environ.get("VERCEL"))
