@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Регистрация' if mode == 'register' else 'Вход' }}{% endblock %}
+{% block content %}
+<div class="auth-page"><div class="auth-card panel">
+<div class="eyebrow">ТВОЁ СООБЩЕСТВО</div><h1>{{ 'Создай' if mode == 'register' else 'С возвращением,' }} <span>{{ 'аккаунт.' if mode == 'register' else 'друг.' }}</span></h1>
+<p class="muted">{{ 'Присоединяйся к Pixora и делись моментами.' if mode == 'register' else 'Войди, чтобы увидеть свою ленту.' }}</p>
+<form method="post" class="form-stack">
+{% if mode == 'register' %}<label>Имя пользователя<input name="username" minlength="3" maxlength="30" required placeholder="yourname"></label><label>Email<input type="email" name="email" required placeholder="you@example.com"></label>{% else %}<label>Имя пользователя или email<input name="identity" required></label>{% endif %}
+<label>Пароль<input type="password" name="password" minlength="{{ 8 if mode == 'register' else 1 }}" required></label>
+<button class="button button-primary full" type="submit">{{ 'Создать аккаунт' if mode == 'register' else 'Войти' }} ↗</button>
+</form><p class="auth-switch">{% if mode == 'register' %}Уже есть аккаунт? <a href="{{ url_for('login') }}">Войти</a>{% else %}Впервые здесь? <a href="{{ url_for('register') }}">Создать аккаунт</a>{% endif %}</p>
+</div></div>
+{% endblock %}
