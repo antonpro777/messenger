@@ -1,10 +1,41 @@
 <!doctype html>
 <html lang="ru">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>{% block title %}Главная{% endblock %} · Pixora</title><link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet"><link rel="stylesheet" href="/css/style.css"></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>{% block title %}Главная{% endblock %} · Pixora</title><link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet"><link rel="stylesheet" href="/css/style.css"><meta name="theme-color" content="#111018"></head>
 <body><div class="ambient ambient-one"></div><div class="ambient ambient-two"></div><div class="app-shell">
 <aside class="sidebar"><a class="brand" href="{{ url_for('index') }}"><span class="brand-mark">p</span><span>pixora<span class="brand-dot">.</span></span></a><div class="side-label">МЕНЮ</div><nav class="nav-links">
 <a class="{% if request.endpoint == 'index' %}active{% endif %}" href="{{ url_for('index') }}"><span class="nav-icon">⌂</span>Главная</a><a class="{% if request.endpoint == 'explore' %}active{% endif %}" href="{{ url_for('explore') }}"><span class="nav-icon">⌕</span>Обзор</a><a class="{% if request.endpoint == 'search' %}active{% endif %}" href="{{ url_for('search') }}"><span class="nav-icon">◎</span>Поиск</a>
 {% if current_user.is_authenticated %}<a class="{% if request.endpoint == 'upload' %}active{% endif %}" href="{{ url_for('upload') }}"><span class="nav-icon">＋</span>Создать</a><a href="{{ url_for('profile', username=current_user.username) }}"><span class="nav-icon">◉</span>Мой профиль</a>{% endif %}</nav>
 <div class="sidebar-bottom"><div class="side-label">ВАШЕ ПРОСТРАНСТВО</div>{% if current_user.is_authenticated %}<a class="mini-user" href="{{ url_for('profile', username=current_user.username) }}"><span class="avatar">{{ current_user.display_name[:1]|upper }}</span><span><b>{{ current_user.display_name }}</b><small>@{{ current_user.username }}</small></span></a><a class="settings-link" href="{{ url_for('settings') }}">⚙ Настройки профиля</a><form action="{{ url_for('logout') }}" method="post"><button class="logout-link" type="submit">↗ Выйти / сменить аккаунт</button></form>{% else %}<a class="button button-primary full" href="{{ url_for('login') }}">Войти</a><a class="button button-ghost full" href="{{ url_for('register') }}">Создать аккаунт</a>{% endif %}<div class="sidebar-note">Твоя жизнь. Твой кадр. <span>Твоя Pixora.</span></div></div></aside>
 <main class="main-area"><header class="topbar"><div class="mobile-brand"><span class="brand-mark">p</span> pixora<span class="brand-dot">.</span></div><form class="top-search" action="{{ url_for('search') }}"><span>⌕</span><input name="q" placeholder="Найти людей..." value="{{ request.args.get('q','') }}"></form><div class="top-actions">{% if current_user.is_authenticated %}<a class="icon-button" href="{{ url_for('upload') }}" title="Создать публикацию">＋</a><a class="top-avatar" href="{{ url_for('profile', username=current_user.username) }}">{{ current_user.display_name[:1]|upper }}</a>{% else %}<a class="top-login" href="{{ url_for('login') }}">Войти</a>{% endif %}</div></header>
-<section class="content">{% with messages = get_flashed_messages(with_categories=true) %}{% if messages %}<div class="flashes">{% for category, message in messages %}<div class="flash {{ category }}">{{ message }}</div>{% endfor %}</div>{% endif %}{% endwith %}{% block content %}{% endblock %}</section><footer class="footer">© 2026 Pixora <span>Создано, чтобы делиться моментами.</span></footer></main></div></body></html>
+<section class="content">{% with messages = get_flashed_messages(with_categories=true) %}{% if messages %}<div class="flashes">{% for category, message in messages %}<div class="flash {{ category }}">{{ message }}</div>{% endfor %}</div>{% endif %}{% endwith %}{% block content %}{% endblock %}</section><footer class="footer">© 2026 Pixora <span>Создано, чтобы делиться моментами.</span></footer></main></div><div class="page-loader" id="page-loader"><div class="loader-orbit"><span></span><span></span><span></span></div><b>pixora<span>.</span></b></div><script>
+(() => {
+  const loader = document.getElementById('page-loader');
+  window.addEventListener('load', () => { setTimeout(() => loader?.classList.add('hidden'), 220); });
+  document.addEventListener('click', e => {
+    const like = e.target.closest('.like-button');
+    if (like) { like.classList.remove('like-pop'); void like.offsetWidth; like.classList.add('like-pop'); }
+  });
+  document.querySelectorAll('form').forEach(form => {
+    if (form.action.includes('/stories/create') || form.action.includes('/upload')) {
+      form.addEventListener('submit', () => {
+        try { const ctx = new (window.AudioContext || window.webkitAudioContext)(); const osc=ctx.createOscillator(); const gain=ctx.createGain(); osc.connect(gain); gain.connect(ctx.destination); osc.frequency.value=740; gain.gain.setValueAtTime(.045,ctx.currentTime); gain.gain.exponentialRampToValueAtTime(.001,ctx.currentTime+.22); osc.start(); osc.stop(ctx.currentTime+.22); } catch (_) {}
+      });
+    }
+  });
+  let lastRevision = null, busy = false;
+  async function refreshIfChanged() {
+    if (busy || document.visibilityState !== 'visible') return;
+    busy = true;
+    try {
+      const response = await fetch('/api/revision', {cache:'no-store'});
+      if (response.ok) {
+        const data = await response.json();
+        if (lastRevision !== null && data.revision !== lastRevision) location.reload();
+        lastRevision = data.revision;
+      }
+    } catch (_) {} finally { busy = false; }
+  }
+  refreshIfChanged();
+  setInterval(refreshIfChanged, 12000);
+})();
+</script></body></html>
