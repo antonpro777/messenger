@@ -439,7 +439,8 @@ def api_revision():
         db.session.query(func.max(Follow.created_at)).scalar(),
         db.session.query(func.max(Comment.created_at)).scalar(),
     ]
-    return {"revision": "|".join(x.isoformat() if x else "" for x in stamps)}
+    counts = [Post.query.count(), Story.query.count(), Like.query.count(), Follow.query.count(), Comment.query.count()]
+    return {"revision": "|".join(x.isoformat() if x else "" for x in stamps) + "|" + ",".join(map(str, counts))}
 
 
 @app.route("/settings", methods=["GET", "POST"])
