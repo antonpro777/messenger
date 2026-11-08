@@ -4,7 +4,7 @@ import requests
 from datetime import datetime
 from pathlib import Path
 
-from flask import Flask, render_template, request, redirect, url_for, flash, abort
+from flask import Flask, render_template, request, redirect, url_for, flash, abort, send_from_directory
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -16,7 +16,9 @@ UPLOAD_DIR = Path(os.environ.get("UPLOAD_FOLDER", BASE_DIR / "static" / "uploads
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 app = Flask(__name__)
-app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "change-this-before-deploying")
+app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "local-development-only-change-me")
+if os.environ.get("VERCEL") and (not os.environ.get("SECRET_KEY") or not os.environ.get("DATABASE_URL")):
+    raise RuntimeError("Set SECRET_KEY and DATABASE_URL in Vercel Project Environment Variables.")
 database_url = os.environ.get("DATABASE_URL", f"sqlite:///{BASE_DIR / 'pixora.db'}")
 if database_url.startswith("postgres://"):
     database_url = database_url.replace("postgres://", "postgresql://", 1)
@@ -86,6 +88,11 @@ class Follow(db.Model):
 @login_manager.user_loader
 def load_user(user_id):
     return db.session.get(User, int(user_id))
+
+
+@app.route("/css/<path:filename>")
+def public_css(filename):
+    return send_from_directory(BASE_DIR / "public" / "css", filename)
 
 
 @app.context_processor
