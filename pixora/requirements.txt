@@ -1,1 +1,6 @@
-Flask>=3.0,<4\nFlask-Login>=0.6,<1\nFlask-SQLAlchemy>=3.1,<4\npsycopg[binary]>=3.2,<4\ngunicorn>=22,<24\nrequests>=2.32.5,<3\n
+Flask>=3.0,<4
+Flask-Login>=0.6,<1
+Flask-SQLAlchemy>=3.1,<4
+psycopg[binary]>=3.2,<4
+gunicorn>=22,<24
+requests>=2.32.5,<3
