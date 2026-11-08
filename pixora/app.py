@@ -415,7 +415,15 @@ def not_found(_):
 
 
 with app.app_context():
-    db.create_all()
+    try:
+        db.create_all()
+    except Exception as exc:
+        # Keep the real database error visible in Vercel logs without exposing credentials.
+        import re
+        safe_error = re.sub(r"(?i)(password\s*[=:]\s*)[^\s,;]+", r"\1[REDACTED]", str(exc))
+        safe_error = re.sub(r"(?i)(://[^:/@]+:)[^@]+@", r"\1[REDACTED]@", safe_error)
+        app.logger.error("Pixora database initialization failed: %s: %s", type(exc).__name__, safe_error)
+        raise
 
 
 if __name__ == "__main__":
