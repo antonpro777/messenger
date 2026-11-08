@@ -104,6 +104,17 @@ class Comment(db.Model):
     author = db.relationship("User")
 
 
+
+class Message(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    sender_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, index=True)
+    recipient_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, index=True)
+    body = db.Column(db.String(2000), default="")
+    attachment = db.Column(db.String(500), default="")
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
+    sender = db.relationship("User", foreign_keys=[sender_id])
+    recipient = db.relationship("User", foreign_keys=[recipient_id])
+
 class Like(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
@@ -430,6 +441,39 @@ def add_comment(post_id):
     return redirect(request.referrer or url_for("index"))
 
 
+
+@app.route("/chats")
+@login_required
+def chats():
+    from sqlalchemy import case
+    peer_id = case((Message.sender_id == current_user.id, Message.recipient_id), else_=Message.sender_id)
+    latest = db.session.query(func.max(Message.created_at).label("last_at"), peer_id.label("peer_id")).filter(or_(Message.sender_id == current_user.id, Message.recipient_id == current_user.id)).group_by("peer_id").subquery()
+    people = User.query.join(latest, User.id == latest.c.peer_id).order_by(latest.c.last_at.desc()).all()
+    return render_template("chats.html", people=people)
+
+@app.route("/chats/<username>", methods=["GET", "POST"])
+@login_required
+def chat_thread(username):
+    peer = User.query.filter_by(username=username.lower()).first_or_404()
+    if peer.id == current_user.id:
+        abort(400)
+    if request.method == "POST":
+        body = request.form.get("body", "").strip()[:2000]
+        attachment = ""
+        upload = request.files.get("photo")
+        if upload and upload.filename:
+            try:
+                attachment = save_image(upload)
+            except ValueError as exc:
+                flash(str(exc), "error")
+                return redirect(url_for("chat_thread", username=peer.username))
+        if body or attachment:
+            db.session.add(Message(sender_id=current_user.id, recipient_id=peer.id, body=body, attachment=attachment))
+            db.session.commit()
+        return redirect(url_for("chat_thread", username=peer.username))
+    messages = Message.query.filter(or_((Message.sender_id == current_user.id) & (Message.recipient_id == peer.id), (Message.sender_id == peer.id) & (Message.recipient_id == current_user.id))).order_by(Message.created_at.asc()).limit(300).all()
+    return render_template("chat_thread.html", peer=peer, messages=messages)
+
 @app.route("/api/revision")
 def api_revision():
     stamps = [
@@ -439,7 +483,7 @@ def api_revision():
         db.session.query(func.max(Follow.created_at)).scalar(),
         db.session.query(func.max(Comment.created_at)).scalar(),
     ]
-    counts = [Post.query.count(), Story.query.count(), Like.query.count(), Follow.query.count(), Comment.query.count()]
+    counts = [Post.query.count(), Story.query.count(), Like.query.count(), Follow.query.count(), Comment.query.count(), Message.query.count()]
     return {"revision": "|".join(x.isoformat() if x else "" for x in stamps) + "|" + ",".join(map(str, counts))}
 
 
