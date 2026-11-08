@@ -149,19 +149,22 @@ def save_image(file):
             raise ValueError("Выберите непустой файл.")
         if len(file_data) > 12 * 1024 * 1024:
             raise ValueError("Размер фотографии не должен превышать 12 МБ.")
-        response = requests.post(
-            f"{storage_url}/storage/v1/object/pixora-uploads/{filename}",
-            headers={
-                "Authorization": f"Bearer {storage_key}",
-                "apikey": storage_key,
-                "Content-Type": file.mimetype or "application/octet-stream",
-                "x-upsert": "true",
-            },
-            data=file_data,
-            timeout=30,
-        )
+        try:
+            response = requests.post(
+                f"{storage_url}/storage/v1/object/pixora-uploads/{filename}",
+                headers={
+                    "Authorization": f"Bearer {storage_key}",
+                    "apikey": storage_key,
+                    "Content-Type": content_type,
+                    "x-upsert": "false",
+                },
+                data=file_data,
+                timeout=30,
+            )
+        except requests.RequestException as exc:
+            raise ValueError("Supabase Storage временно недоступен. Попробуйте ещё раз.") from exc
         if not response.ok:
-            raise ValueError("Не удалось загрузить фото в облачное хранилище. Проверьте настройки Supabase.")
+            raise ValueError("Supabase Storage отклонил загрузку. Проверьте ключ и настройки bucket pixora-uploads.")
         return f"{storage_url}/storage/v1/object/public/pixora-uploads/{filename}"
     if os.environ.get("VERCEL"):
         raise ValueError("Для загрузки фото нужно настроить SUPABASE_URL и SUPABASE_SERVICE_ROLE_KEY в Vercel.")
@@ -369,15 +372,24 @@ def settings():
             current_user.display_name = display_name
             current_user.bio = bio
             avatar = request.files.get("avatar")
+            new_avatar = None
+            old_avatar = current_user.avatar
             if avatar and avatar.filename:
                 try:
-                    filename = save_image(avatar)
-                    remove_image(current_user.avatar)
-                    current_user.avatar = filename
+                    new_avatar = save_image(avatar)
+                    current_user.avatar = new_avatar
                 except ValueError as exc:
                     flash(str(exc), "error")
                     return render_template("settings.html")
-            db.session.commit()
+            try:
+                db.session.commit()
+            except Exception:
+                db.session.rollback()
+                if new_avatar:
+                    remove_image(new_avatar)
+                raise
+            if new_avatar:
+                remove_image(old_avatar)
             flash("Профиль сохранён.", "success")
             return redirect(url_for("profile", username=current_user.username))
     return render_template("settings.html")
