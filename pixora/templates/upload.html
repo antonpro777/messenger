@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% block title %}Новая публикация{% endblock %}
+{% block content %}
+<div class="form-page"><div class="eyebrow">НОВЫЙ МОМЕНТ</div><h1>Поделись <span>кадром.</span></h1><p class="muted">Загрузи фотографию и добавь немного контекста.</p>
+<form method="post" enctype="multipart/form-data" class="panel form-stack"><label class="upload-zone"><span class="upload-symbol">＋</span><b>Выбери фотографию</b><small>JPG, PNG, GIF или WEBP · до 12 МБ</small><input type="file" name="photo" accept="image/*" required></label>
+<label>Подпись<textarea name="caption" rows="4" maxlength="500" placeholder="О чём этот момент?"></textarea></label>
+<button class="button button-primary full" type="submit">Опубликовать фото ↗</button></form></div>
+{% endblock %}
