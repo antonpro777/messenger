@@ -5,7 +5,10 @@
 <div class="eyebrow">ТВОЁ СООБЩЕСТВО</div><h1>{{ 'Создай' if mode == 'register' else 'С возвращением,' }} <span>{{ 'аккаунт.' if mode == 'register' else 'друг.' }}</span></h1>
 <p class="muted">{{ 'Присоединяйся к Pixora и делись моментами.' if mode == 'register' else 'Войди, чтобы увидеть свою ленту.' }}</p>
 <form method="post" class="form-stack">
-{% if mode == 'register' %}<label>Имя пользователя<input name="username" minlength="3" maxlength="30" required placeholder="yourname"></label><label>Email<input type="email" name="email" required placeholder="you@example.com"></label>{% else %}<label>Имя пользователя или email<input name="identity" required></label>{% endif %}
+{% if mode == 'register' %}<label>Имя пользователя
+<input id="username-field" name="username" minlength="3" maxlength="30" pattern="[A-Za-z0-9_]{3,30}" title="3–30 символов: латинские буквы, цифры и _" required placeholder="yourname">
+<span class="password-check is-invalid" id="username-check" aria-live="polite"><span class="password-check-icon" id="username-check-icon">✕</span><span id="username-check-text">3–30 символов: латинские буквы, цифры и _</span></span>
+</label><label>Email<input type="email" name="email" required placeholder="you@example.com"></label>{% else %}<label>Имя пользователя или email<input name="identity" required></label>{% endif %}
 <label>Пароль
 <input id="password-field" type="password" name="password" minlength="{{ 8 if mode == 'register' else 1 }}" required>
 {% if mode == 'register' %}<span class="password-check" id="password-check" aria-live="polite"><span class="password-check-icon" id="password-check-icon">✕</span><span id="password-check-text">Пароль пока слабый — минимум 8 символов и 2 типа символов</span></span>{% endif %}
@@ -16,6 +19,20 @@
 {% if mode == 'register' %}
 <script>
 (() => {
+  const usernameField = document.getElementById('username-field');
+  const usernameCheck = document.getElementById('username-check');
+  const usernameIcon = document.getElementById('username-check-icon');
+  const usernameMessage = document.getElementById('username-check-text');
+  if (usernameField && usernameCheck && usernameIcon && usernameMessage) {
+    usernameField.addEventListener('input', () => {
+      const value = usernameField.value;
+      const valid = /^[A-Za-z0-9_]{3,30}$/.test(value);
+      usernameCheck.classList.toggle('is-valid', valid);
+      usernameCheck.classList.toggle('is-invalid', !valid);
+      usernameIcon.textContent = valid ? '✓' : '✕';
+      usernameMessage.textContent = valid ? 'Имя пользователя подходит' : '3–30 символов: латинские буквы, цифры и _';
+    });
+  }
   const field = document.getElementById('password-field');
   const check = document.getElementById('password-check');
   const icon = document.getElementById('password-check-icon');
