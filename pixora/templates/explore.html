@@ -1,0 +1,6 @@
+{% extends "base.html" %}
+{% block title %}Обзор{% endblock %}
+{% block content %}
+<div class="page-heading"><div><div class="eyebrow">ОТКРЫВАЙ НОВОЕ</div><h1>Обзор <span>сообщества.</span></h1><p>Случайные моменты пользователей Pixora.</p></div></div>
+<div class="photo-grid">{% for post in posts %}<a class="grid-photo" href="{{ url_for('profile', username=post.author.username) }}"><img src="{{ url_for('static', filename='uploads/' ~ post.image) }}" alt=""><span><b>@{{ post.author.username }}</b><small>♥ {{ post.likes.count() }}</small></span></a>{% else %}<div class="empty-state"><h2>Пока нечего показывать</h2><p>Загрузи первую фотографию!</p></div>{% endfor %}</div>
+{% endblock %}
