@@ -19,11 +19,12 @@ app = Flask(__name__)
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "local-development-only-change-me")
 if os.environ.get("VERCEL") and not os.environ.get("SECRET_KEY"):
     raise RuntimeError("Set SECRET_KEY in Vercel Project Environment Variables.")
-# Temporary preview fallback only: Vercel's /tmp SQLite database is not persistent.
-database_url = os.environ.get(
-    "DATABASE_URL",
-    "sqlite:////tmp/pixora-preview.db" if os.environ.get("VERCEL") else f"sqlite:///{BASE_DIR / 'pixora.db'}",
-)
+# Never accept ephemeral SQLite on Vercel: it would silently lose accounts and posts.
+database_url = os.environ.get("DATABASE_URL")
+if os.environ.get("VERCEL") and not database_url:
+    raise RuntimeError("Pixora is not configured: add DATABASE_URL (Supabase PostgreSQL) to Vercel.")
+if not database_url:
+    database_url = f"sqlite:///{BASE_DIR / 'pixora.db'}"
 if database_url.startswith("postgres://"):
     database_url = database_url.replace("postgres://", "postgresql://", 1)
 if database_url.startswith("postgresql://"):
@@ -137,8 +138,17 @@ def save_image(file):
     ext = secure_filename(file.filename).rsplit(".", 1)[1].lower()
     filename = f"{uuid.uuid4().hex}.{ext}"
     storage_url = os.environ.get("SUPABASE_URL", "").rstrip("/")
-    storage_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+    storage_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY") or os.environ.get("SUPABASE_SECRET_KEY")
     if storage_url and storage_key:
+        content_type = (file.mimetype or "").lower()
+        allowed_types = {"image/jpeg", "image/png", "image/gif", "image/webp"}
+        if content_type not in allowed_types:
+            raise ValueError("Формат файла не поддерживается. Выберите JPG, PNG, GIF или WEBP.")
+        file_data = file.stream.read()
+        if not file_data:
+            raise ValueError("Выберите непустой файл.")
+        if len(file_data) > 12 * 1024 * 1024:
+            raise ValueError("Размер фотографии не должен превышать 12 МБ.")
         response = requests.post(
             f"{storage_url}/storage/v1/object/pixora-uploads/{filename}",
             headers={
@@ -147,7 +157,7 @@ def save_image(file):
                 "Content-Type": file.mimetype or "application/octet-stream",
                 "x-upsert": "true",
             },
-            data=file.stream.read(),
+            data=file_data,
             timeout=30,
         )
         if not response.ok:
@@ -163,7 +173,7 @@ def remove_image(value):
     if not value:
         return
     storage_url = os.environ.get("SUPABASE_URL", "").rstrip("/")
-    storage_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+    storage_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY") or os.environ.get("SUPABASE_SECRET_KEY")
     if storage_url and storage_key and value.startswith(storage_url + "/storage/v1/object/"):
         filename = value.rsplit("/", 1)[-1]
         requests.delete(
@@ -246,7 +256,12 @@ def upload():
             filename = save_image(request.files.get("photo"))
             post = Post(image=filename, caption=request.form.get("caption", "").strip()[:500], author=current_user)
             db.session.add(post)
-            db.session.commit()
+            try:
+                db.session.commit()
+            except Exception:
+                db.session.rollback()
+                remove_image(filename)
+                raise
             flash("Фото опубликовано!", "success")
             return redirect(url_for("profile", username=current_user.username))
         except ValueError as exc:
@@ -278,9 +293,16 @@ def edit_post(post_id):
         replacement = request.files.get("photo")
         if replacement and replacement.filename:
             try:
+                old_name = post.image
                 new_name = save_image(replacement)
-                remove_image(post.image)
                 post.image = new_name
+                try:
+                    db.session.commit()
+                except Exception:
+                    db.session.rollback()
+                    remove_image(new_name)
+                    raise
+                remove_image(old_name)
             except ValueError as exc:
                 flash(str(exc), "error")
                 return render_template("edit_post.html", post=post)
