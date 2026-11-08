@@ -6,8 +6,31 @@
 <p class="muted">{{ 'Присоединяйся к Pixora и делись моментами.' if mode == 'register' else 'Войди, чтобы увидеть свою ленту.' }}</p>
 <form method="post" class="form-stack">
 {% if mode == 'register' %}<label>Имя пользователя<input name="username" minlength="3" maxlength="30" required placeholder="yourname"></label><label>Email<input type="email" name="email" required placeholder="you@example.com"></label>{% else %}<label>Имя пользователя или email<input name="identity" required></label>{% endif %}
-<label>Пароль<input type="password" name="password" minlength="{{ 8 if mode == 'register' else 1 }}" required></label>
+<label>Пароль
+<input id="password-field" type="password" name="password" minlength="{{ 8 if mode == 'register' else 1 }}" required>
+{% if mode == 'register' %}<span class="password-check" id="password-check" aria-live="polite"><span class="password-check-icon" id="password-check-icon">✕</span><span id="password-check-text">Пароль пока слабый — минимум 8 символов и 2 типа символов</span></span>{% endif %}
+</label>
 <button class="button button-primary full" type="submit">{{ 'Создать аккаунт' if mode == 'register' else 'Войти' }} ↗</button>
 </form><p class="auth-switch">{% if mode == 'register' %}Уже есть аккаунт? <a href="{{ url_for('login') }}">Войти</a>{% else %}Впервые здесь? <a href="{{ url_for('register') }}">Создать аккаунт</a>{% endif %}</p>
 </div></div>
+{% if mode == 'register' %}
+<script>
+(() => {
+  const field = document.getElementById('password-field');
+  const check = document.getElementById('password-check');
+  const icon = document.getElementById('password-check-icon');
+  const message = document.getElementById('password-check-text');
+  if (!field || !check || !icon || !message) return;
+  field.addEventListener('input', () => {
+    const value = field.value;
+    const types = [/[a-z]/.test(value), /[A-Z]/.test(value), /[0-9]/.test(value), /[^A-Za-z0-9]/.test(value)].filter(Boolean).length;
+    const valid = value.length >= 8 && types >= 2;
+    check.classList.toggle('is-valid', valid);
+    check.classList.toggle('is-invalid', !valid);
+    icon.textContent = valid ? '✓' : '✕';
+    message.textContent = valid ? 'Хороший пароль — можно создавать аккаунт' : 'Пароль пока слабый — минимум 8 символов и 2 типа символов';
+  });
+})();
+</script>
+{% endif %}
 {% endblock %}
