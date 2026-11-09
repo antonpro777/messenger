@@ -80,6 +80,7 @@ class Post(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     image = db.Column(db.String(500), nullable=False)
     media_type = db.Column(db.String(12), nullable=False, default="image")
+    is_pixo = db.Column(db.Boolean, nullable=False, default=False)
     duration_seconds = db.Column(db.Float, nullable=True)
     caption = db.Column(db.String(500), default="")
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
@@ -236,7 +237,7 @@ def index():
 
 @app.route("/pixo")
 def pixo_feed():
-    posts = Post.query.filter_by(media_type="video").order_by(Post.created_at.desc()).limit(60).all()
+    posts = Post.query.filter_by(media_type="video", is_pixo=True).order_by(Post.created_at.desc()).limit(60).all()
     return render_template("pixo.html", posts=posts)
 
 
@@ -308,7 +309,13 @@ def sign_video_upload():
     storage_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
     if not storage_url or not storage_key:
         return {"error": "Видеохранилище пока не настроено."}, 503
-    path = f"user_{current_user.id}/{uuid.uuid4().hex}.webm"
+    data = request.get_json(silent=True) or {}
+    is_pixo = bool(data.get("is_pixo", True))
+    content_type = "video/webm" if is_pixo else str(data.get("content_type", "video/mp4"))
+    if content_type not in {"video/webm", "video/mp4"}:
+        return {"error": "Поддерживаются MP4 и WebM."}, 400
+    extension = "webm" if content_type == "video/webm" else "mp4"
+    path = f"user_{current_user.id}/{uuid.uuid4().hex}.{extension}"
     endpoint = f"{storage_url}/storage/v1/object/upload/sign/pixora-videos/{quote(path, safe='/')}"
     try:
         response = requests.post(endpoint, headers={"Authorization": f"Bearer {storage_key}", "apikey": storage_key}, json={}, timeout=20)
@@ -320,7 +327,7 @@ def sign_video_upload():
         if not token:
             return {"error": "Хранилище не вернуло токен загрузки."}, 502
         project_ref = storage_url.split("//", 1)[-1].split(".", 1)[0]
-        return {"path": path, "token": token, "endpoint": f"https://{project_ref}.storage.supabase.co/storage/v1/upload/resumable"}
+        return {"path": path, "token": token, "content_type": content_type, "is_pixo": is_pixo, "endpoint": f"https://{project_ref}.storage.supabase.co/storage/v1/upload/resumable"}
     except (requests.RequestException, ValueError):
         return {"error": "Хранилище временно недоступно."}, 502
 
@@ -335,10 +342,11 @@ def publish_video():
     except (TypeError, ValueError):
         duration = 0
     caption = str(data.get("caption", "")).strip()[:500]
-    if not path.startswith(f"user_{current_user.id}/") or not path.endswith(".webm") or ".." in path:
+    is_pixo = bool(data.get("is_pixo", True))
+    if not path.startswith(f"user_{current_user.id}/") or not path.endswith((".webm", ".mp4")) or ".." in path:
         abort(400)
-    if not (0 < duration <= 60.5):
-        return {"error": "Видео должно длиться не больше 60 секунд."}, 400
+    if duration <= 0 or (is_pixo and duration > 60.5):
+        return {"error": "Pixo — это видео длительностью до 60 секунд."}, 400
     public_url = video_public_url(path)
     try:
         check = requests.head(public_url, timeout=15)
@@ -346,7 +354,7 @@ def publish_video():
         return {"error": "Не удалось проверить загруженное видео."}, 502
     if check.status_code != 200:
         return {"error": "Видео ещё не загрузилось полностью. Попробуй снова."}, 400
-    post = Post(image=public_url, media_type="video", duration_seconds=round(duration, 2), caption=caption, author=current_user)
+    post = Post(image=public_url, media_type="video", is_pixo=is_pixo, duration_seconds=round(duration, 2), caption=caption, author=current_user)
     db.session.add(post)
     db.session.commit()
     return {"ok": True, "redirect": url_for("profile", username=current_user.username)}
@@ -692,6 +700,8 @@ with app.app_context():
             db.session.execute(text("ALTER TABLE post ADD COLUMN media_type VARCHAR(12) NOT NULL DEFAULT 'image'"))
         if "duration_seconds" not in post_columns:
             db.session.execute(text("ALTER TABLE post ADD COLUMN duration_seconds FLOAT"))
+        if "is_pixo" not in post_columns:
+            db.session.execute(text("ALTER TABLE post ADD COLUMN is_pixo BOOLEAN NOT NULL DEFAULT FALSE"))
         db.session.commit()
     except Exception as exc:
         # Keep the real database error visible in Vercel logs without exposing credentials.
