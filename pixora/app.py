@@ -114,6 +114,7 @@ class Message(db.Model):
     recipient_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, index=True)
     body = db.Column(db.String(2000), default="")
     attachment = db.Column(db.String(500), default="")
+    attachment_type = db.Column(db.String(12), nullable=False, default="image")
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
     sender = db.relationship("User", foreign_keys=[sender_id])
     recipient = db.relationship("User", foreign_keys=[recipient_id])
@@ -504,6 +505,54 @@ def add_comment(post_id):
         db.session.commit()
     return redirect(request.referrer or url_for("index"))
 
+
+
+
+@app.route("/api/audio/sign", methods=["POST"])
+@login_required
+def sign_audio_upload():
+    storage_url = os.environ.get("SUPABASE_URL", "").rstrip("/")
+    storage_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+    if not storage_url or not storage_key:
+        return {"error": "Голосовые сообщения пока не настроены."}, 503
+    path = f"user_{current_user.id}/{uuid.uuid4().hex}.webm"
+    endpoint = f"{storage_url}/storage/v1/object/upload/sign/pixora-audio/{quote(path, safe="/")}"
+    try:
+        response = requests.post(endpoint, headers={"Authorization": f"Bearer {storage_key}", "apikey": storage_key}, json={}, timeout=20)
+        if not response.ok:
+            return {"error": "Не удалось подготовить голосовое сообщение."}, 502
+        token = response.json().get("token")
+        if not token:
+            return {"error": "Хранилище не вернуло токен."}, 502
+        project_ref = storage_url.split("//", 1)[-1].split(".", 1)[0]
+        return {"path": path, "token": token, "endpoint": f"https://{project_ref}.storage.supabase.co/storage/v1/upload/resumable"}
+    except (requests.RequestException, ValueError):
+        return {"error": "Хранилище временно недоступно."}, 502
+
+
+@app.route("/audio/<int:message_id>")
+@login_required
+def play_voice_message(message_id):
+    message = db.get_or_404(Message, message_id)
+    if current_user.id not in (message.sender_id, message.recipient_id) or message.attachment_type != "voice":
+        abort(403)
+    storage_url = os.environ.get("SUPABASE_URL", "").rstrip("/")
+    storage_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+    if not storage_url or not storage_key:
+        abort(503)
+    endpoint = f"{storage_url}/storage/v1/object/sign/pixora-audio/{quote(message.attachment, safe="/")}"
+    try:
+        response = requests.post(endpoint, headers={"Authorization": f"Bearer {storage_key}", "apikey": storage_key}, json={"expiresIn": 3600}, timeout=15)
+        if not response.ok:
+            abort(502)
+        signed = response.json().get("signedURL") or response.json().get("signedUrl")
+        if not signed:
+            abort(502)
+        if signed.startswith("http://") or signed.startswith("https://"):
+            return redirect(signed)
+        return redirect(storage_url + "/storage/v1" + signed)
+    except requests.RequestException:
+        abort(502)
 
 
 @app.route("/chats")
