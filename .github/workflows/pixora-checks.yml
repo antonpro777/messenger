@@ -1,0 +1,37 @@
+name: Pixora code checks
+
+on:
+  push:
+    branches: [pixora-preview]
+    paths:
+      - "pixora/**"
+      - ".github/workflows/pixora-checks.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  python-and-templates:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: pixora-preview
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install app dependencies
+        run: pip install -r pixora/requirements.txt
+      - name: Check Python syntax
+        run: python -m py_compile pixora/app.py
+      - name: Parse Jinja templates
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from jinja2 import Environment
+          env = Environment()
+          for template in Path("pixora/templates").glob("*.html"):
+              env.parse(template.read_text(encoding="utf-8"))
+              print("OK", template)
+          PY
