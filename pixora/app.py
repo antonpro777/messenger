@@ -516,7 +516,7 @@ def sign_audio_upload():
     if not storage_url or not storage_key:
         return {"error": "Голосовые сообщения пока не настроены."}, 503
     path = f"user_{current_user.id}/{uuid.uuid4().hex}.webm"
-    endpoint = f"{storage_url}/storage/v1/object/upload/sign/pixora-audio/{quote(path, safe="/")}"
+    endpoint = f"{storage_url}/storage/v1/object/upload/sign/pixora-audio/{quote(path, safe='/')}"
     try:
         response = requests.post(endpoint, headers={"Authorization": f"Bearer {storage_key}", "apikey": storage_key}, json={}, timeout=20)
         if not response.ok:
