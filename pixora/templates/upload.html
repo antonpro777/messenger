@@ -69,7 +69,7 @@
      const clip=isPixo?await trimVideo(from,to):input.files[0];
      if(clip.size>45*1024*1024)throw new Error('Файл больше 45 МБ. Выбери видео меньшего размера.');
      const clipDuration=isPixo?to-from:duration;
-     const contentType=clip.type==='video/webm'?'video/webm':'video/mp4';
+     const contentType=clip.type.toLowerCase().includes('webm')?'video/webm':'video/mp4';
      status.textContent='Подготавливаем защищённую загрузку…';
      const signed=await fetch('/api/videos/sign',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({is_pixo:isPixo,content_type:contentType})}).then(async r=>{const j=await r.json();if(!r.ok)throw new Error(j.error||'Ошибка подготовки загрузки');return j;});
      status.textContent='Загружаем видео… Не закрывай окно.';
