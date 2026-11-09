@@ -182,7 +182,8 @@ def public_css(filename):
 
 @app.context_processor
 def inject_globals():
-    return {"site_name": "Pixora", "media_url": media_url, "post_comments": lambda post_id: Comment.query.filter_by(post_id=post_id).order_by(Comment.created_at.asc()).all()}
+    balance = fons_balance(current_user.id) if current_user.is_authenticated else 0
+    return {"site_name": "Pixora", "media_url": media_url, "fons_balance": balance, "post_comments": lambda post_id: Comment.query.filter_by(post_id=post_id).order_by(Comment.created_at.asc()).all()}
 
 
 def allowed_file(filename):
@@ -494,6 +495,7 @@ def profile(username):
         followers_count=followers_count, following_count=following_count,
         is_following=is_following,
         stories=user.stories.order_by(Story.created_at.desc()).all(),
+        received_gifts=GiftSent.query.filter_by(recipient_id=user.id).order_by(GiftSent.created_at.desc()).limit(12).all(),
     )
 
 
