@@ -139,6 +139,37 @@ class Follow(db.Model):
     )
 
 
+class FonsTransaction(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, index=True)
+    amount = db.Column(db.Integer, nullable=False)
+    reason = db.Column(db.String(80), nullable=False)
+    source_like_id = db.Column(db.Integer, db.ForeignKey("like.id"), unique=True, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
+
+
+class FonsLikeReward(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    supporter_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+    creator_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+    like_id = db.Column(db.Integer, db.ForeignKey("like.id"), nullable=False, unique=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    __table_args__ = (db.UniqueConstraint("supporter_id", "creator_id", "like_id", name="unique_fons_like_reward"),)
+
+
+class GiftSent(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    sender_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, index=True)
+    recipient_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, index=True)
+    gift_key = db.Column(db.String(30), nullable=False)
+    gift_name = db.Column(db.String(60), nullable=False)
+    emoji = db.Column(db.String(12), nullable=False)
+    price = db.Column(db.Integer, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
+    sender = db.relationship("User", foreign_keys=[sender_id])
+    recipient = db.relationship("User", foreign_keys=[recipient_id])
+
+
 @login_manager.user_loader
 def load_user(user_id):
     return db.session.get(User, int(user_id))
@@ -389,7 +420,15 @@ def toggle_like(post_id):
     if like:
         db.session.delete(like)
     else:
-        db.session.add(Like(user_id=current_user.id, post_id=post.id))
+        db.session.query(User.id).filter(User.id == current_user.id).with_for_update().first()
+        like = Like(user_id=current_user.id, post_id=post.id)
+        db.session.add(like)
+        db.session.flush()
+        if post.user_id != current_user.id:
+            rewarded = FonsLikeReward.query.filter_by(supporter_id=current_user.id, creator_id=post.user_id).count()
+            if rewarded < 5:
+                db.session.add(FonsLikeReward(supporter_id=current_user.id, creator_id=post.user_id, like_id=like.id))
+                db.session.add(FonsTransaction(user_id=post.user_id, amount=10, reason="Награда за лайк", source_like_id=like.id))
     db.session.commit()
     return redirect(request.referrer or url_for("index"))
 
@@ -633,6 +672,47 @@ def api_revision():
     stamps.append(db.session.query(func.max(Message.created_at)).scalar())
     counts = [Post.query.count(), Story.query.count(), Like.query.count(), Follow.query.count(), Comment.query.count(), Message.query.count()]
     return {"revision": "|".join(x.isoformat() if x else "" for x in stamps) + "|" + ",".join(map(str, counts))}
+
+
+
+GIFT_CATALOG = {
+    "flower": {"name": "Цветок", "emoji": "🌸", "price": 10},
+    "heart": {"name": "Сердце", "emoji": "💖", "price": 20},
+    "star": {"name": "Звезда", "emoji": "⭐", "price": 30},
+    "crown": {"name": "Корона", "emoji": "👑", "price": 50},
+    "rocket": {"name": "Ракета", "emoji": "🚀", "price": 100},
+}
+
+
+def fons_balance(user_id):
+    total = db.session.query(func.coalesce(func.sum(FonsTransaction.amount), 0)).filter_by(user_id=user_id).scalar()
+    return int(total or 0)
+
+
+@app.route("/shop", methods=["GET", "POST"])
+@login_required
+def gift_shop():
+    if request.method == "POST":
+        recipient_name = request.form.get("recipient", "").strip().lower()
+        gift_key = request.form.get("gift", "")
+        recipient = User.query.filter_by(username=recipient_name).first()
+        gift = GIFT_CATALOG.get(gift_key)
+        if not recipient or recipient.id == current_user.id or not gift:
+            flash("Проверь получателя и выбранный подарок.", "error")
+            return redirect(url_for("gift_shop"))
+        db.session.query(User.id).filter(User.id == current_user.id).with_for_update().first()
+        balance = fons_balance(current_user.id)
+        if balance < gift["price"]:
+            flash("Не хватает фонов для этого подарка.", "error")
+            return redirect(url_for("gift_shop"))
+        sent = GiftSent(sender_id=current_user.id, recipient_id=recipient.id, gift_key=gift_key, gift_name=gift["name"], emoji=gift["emoji"], price=gift["price"])
+        db.session.add(sent)
+        db.session.add(FonsTransaction(user_id=current_user.id, amount=-gift["price"], reason=f"Подарок: {gift['name']}"))
+        db.session.commit()
+        flash(f"Подарок {gift['emoji']} отправлен пользователю @{recipient.username}!", "success")
+        return redirect(url_for("gift_shop"))
+    gifts = GiftSent.query.filter_by(recipient_id=current_user.id).order_by(GiftSent.created_at.desc()).limit(30).all()
+    return render_template("shop.html", catalog=GIFT_CATALOG, balance=fons_balance(current_user.id), gifts=gifts)
 
 
 @app.route("/settings", methods=["GET", "POST"])
