@@ -408,6 +408,9 @@ def edit_post(post_id):
                 old_name = post.image
                 new_name = save_image(replacement)
                 post.image = new_name
+                post.media_type = "image"
+                post.is_pixo = False
+                post.duration_seconds = None
                 try:
                     db.session.commit()
                 except Exception:
