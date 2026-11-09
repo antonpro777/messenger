@@ -33,3 +33,7 @@
 .pixo-actions form{margin:0}.pixo-like{background:#171420c9;border:1px solid #ffffff30;border-radius:50%;width:42px;height:42px;color:white;font-size:25px;cursor:pointer}.pixo-like.liked{color:#ff6d9d}
 .pixo-comment{display:flex;gap:8px}.pixo-comment input{min-width:0;flex:1;background:#171420c9;border:1px solid #ffffff35;border-radius:10px;padding:10px;color:white}.pixo-comment button{background:var(--grad);border:0;border-radius:10px;color:white;padding:0 14px}
 @media(max-width:650px){.pixo-feed{height:calc(100svh - 190px)}.pixo-card{width:min(100%,380px);height:calc(100svh - 205px);border-radius:16px}}
+
+.voice-controls{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.voice-controls .muted{font-size:11px}
+.chat-messages audio{display:block;max-width:min(100%,300px);height:38px;margin:5px 0}
