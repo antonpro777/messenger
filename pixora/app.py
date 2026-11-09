@@ -3,6 +3,7 @@ import uuid
 import requests
 from datetime import datetime
 from pathlib import Path
+from urllib.parse import quote
 
 from flask import Flask, render_template, request, redirect, url_for, flash, abort, send_from_directory
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
@@ -44,7 +45,7 @@ app.config["SESSION_COOKIE_HTTPONLY"] = True
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 app.config["SESSION_COOKIE_SECURE"] = bool(os.environ.get("VERCEL"))
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-app.config["MAX_CONTENT_LENGTH"] = 12 * 1024 * 1024
+app.config["MAX_CONTENT_LENGTH"] = 12 * 1024 * 1024  # Videos upload directly to Storage
 app.config["UPLOAD_FOLDER"] = str(UPLOAD_DIR)
 ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "gif", "webp"}
 
@@ -77,7 +78,9 @@ class User(UserMixin, db.Model):
 
 class Post(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    image = db.Column(db.String(255), nullable=False)
+    image = db.Column(db.String(500), nullable=False)
+    media_type = db.Column(db.String(12), nullable=False, default="image")
+    duration_seconds = db.Column(db.Float, nullable=True)
     caption = db.Column(db.String(500), default="")
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
     user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, index=True)
@@ -279,6 +282,65 @@ def logout():
     logout_user()
     flash("Вы вышли из аккаунта. Теперь можно войти в другой или создать новый.", "info")
     return redirect(url_for("login"))
+
+
+
+def video_public_url(path):
+    storage_url = os.environ.get("SUPABASE_URL", "").rstrip("/")
+    if not storage_url:
+        return ""
+    return f"{storage_url}/storage/v1/object/public/pixora-videos/{path}"
+
+
+@app.route("/api/videos/sign", methods=["POST"])
+@login_required
+def sign_video_upload():
+    storage_url = os.environ.get("SUPABASE_URL", "").rstrip("/")
+    storage_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+    if not storage_url or not storage_key:
+        return {"error": "Видеохранилище пока не настроено."}, 503
+    path = f"user_{current_user.id}/{uuid.uuid4().hex}.webm"
+    endpoint = f"{storage_url}/storage/v1/object/upload/sign/pixora-videos/{quote(path, safe='/')}"
+    try:
+        response = requests.post(endpoint, headers={"Authorization": f"Bearer {storage_key}", "apikey": storage_key}, json={}, timeout=20)
+        if not response.ok:
+            app.logger.warning("Video signing failed with status %s", response.status_code)
+            return {"error": "Не удалось подготовить загрузку видео."}, 502
+        payload = response.json()
+        token = payload.get("token")
+        if not token:
+            return {"error": "Хранилище не вернуло токен загрузки."}, 502
+        project_ref = storage_url.split("//", 1)[-1].split(".", 1)[0]
+        return {"path": path, "token": token, "endpoint": f"https://{project_ref}.storage.supabase.co/storage/v1/upload/resumable"}
+    except (requests.RequestException, ValueError):
+        return {"error": "Хранилище временно недоступно."}, 502
+
+
+@app.route("/api/videos/publish", methods=["POST"])
+@login_required
+def publish_video():
+    data = request.get_json(silent=True) or {}
+    path = str(data.get("path", ""))
+    try:
+        duration = float(data.get("duration_seconds", 0))
+    except (TypeError, ValueError):
+        duration = 0
+    caption = str(data.get("caption", "")).strip()[:500]
+    if not path.startswith(f"user_{current_user.id}/") or not path.endswith(".webm") or ".." in path:
+        abort(400)
+    if not (0 < duration <= 60.5):
+        return {"error": "Видео должно длиться не больше 60 секунд."}, 400
+    public_url = video_public_url(path)
+    try:
+        check = requests.head(public_url, timeout=15)
+    except requests.RequestException:
+        return {"error": "Не удалось проверить загруженное видео."}, 502
+    if check.status_code != 200:
+        return {"error": "Видео ещё не загрузилось полностью. Попробуй снова."}, 400
+    post = Post(image=public_url, media_type="video", duration_seconds=round(duration, 2), caption=caption, author=current_user)
+    db.session.add(post)
+    db.session.commit()
+    return {"ok": True, "redirect": url_for("profile", username=current_user.username)}
 
 
 @app.route("/upload", methods=["GET", "POST"])
@@ -483,6 +545,7 @@ def api_revision():
         db.session.query(func.max(Follow.created_at)).scalar(),
         db.session.query(func.max(Comment.created_at)).scalar(),
     ]
+    stamps.append(db.session.query(func.max(Message.created_at)).scalar())
     counts = [Post.query.count(), Story.query.count(), Like.query.count(), Follow.query.count(), Comment.query.count(), Message.query.count()]
     return {"revision": "|".join(x.isoformat() if x else "" for x in stamps) + "|" + ",".join(map(str, counts))}
 
@@ -544,6 +607,14 @@ def not_found(_):
 with app.app_context():
     try:
         db.create_all()
+        # Additive migration for existing Pixora installations (Postgres and SQLite).
+        from sqlalchemy import inspect, text
+        post_columns = {column["name"] for column in inspect(db.engine).get_columns("post")}
+        if "media_type" not in post_columns:
+            db.session.execute(text("ALTER TABLE post ADD COLUMN media_type VARCHAR(12) NOT NULL DEFAULT 'image'"))
+        if "duration_seconds" not in post_columns:
+            db.session.execute(text("ALTER TABLE post ADD COLUMN duration_seconds FLOAT"))
+        db.session.commit()
     except Exception as exc:
         # Keep the real database error visible in Vercel logs without exposing credentials.
         import re
