@@ -672,7 +672,9 @@ def api_revision():
         db.session.query(func.max(Comment.created_at)).scalar(),
     ]
     stamps.append(db.session.query(func.max(Message.created_at)).scalar())
-    counts = [Post.query.count(), Story.query.count(), Like.query.count(), Follow.query.count(), Comment.query.count(), Message.query.count()]
+    stamps.append(db.session.query(func.max(FonsTransaction.created_at)).scalar())
+    stamps.append(db.session.query(func.max(GiftSent.created_at)).scalar())
+    counts = [Post.query.count(), Story.query.count(), Like.query.count(), Follow.query.count(), Comment.query.count(), Message.query.count(), FonsTransaction.query.count(), GiftSent.query.count()]
     return {"revision": "|".join(x.isoformat() if x else "" for x in stamps) + "|" + ",".join(map(str, counts))}
 
 
