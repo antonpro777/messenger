@@ -37,3 +37,16 @@
 .voice-controls{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 .voice-controls .muted{font-size:11px}
 .chat-messages audio{display:block;max-width:min(100%,300px);height:38px;margin:5px 0}
+
+/* Fons wallet and gift shop */
+.fons-balance{min-width:140px;padding:16px 20px;border:1px solid #a98cff45;border-radius:16px;background:linear-gradient(140deg,#32234b,#211d30);display:grid;gap:3px;text-align:center}
+.fons-balance small{font-size:9px;letter-spacing:1.4px;color:#c5b4ef}.fons-balance b{font-size:25px}.fons-balance span{font-size:11px;color:var(--muted)}
+.fons-how,.shop-panel{padding:22px;margin:22px 0}.fons-how b{font-size:15px}.fons-how p{font-size:13px;line-height:1.7;color:#b9b3c7;margin:9px 0 0}.fons-how strong{color:#e2d4ff}
+.shop-send{display:grid;grid-template-columns:1fr 1fr auto;align-items:end;gap:14px;margin:20px 0}
+.shop-send label{display:grid;gap:7px;font-size:12px;color:#c4bfd0}
+.shop-send input,.shop-send select{min-width:0;width:100%;background:#111018;color:#f6f3fb;border:1px solid var(--line);border-radius:10px;padding:12px;outline:none}
+.gift-catalog,.gift-wall{display:grid;grid-template-columns:repeat(auto-fit,minmax(125px,1fr));gap:12px}
+.gift-card,.gift-tile{display:grid;justify-items:center;gap:7px;text-align:center;background:#211e2c;border:1px solid var(--line);border-radius:14px;padding:17px 10px}
+.gift-card>span,.gift-tile>span{font-size:34px}.gift-card b,.gift-tile b{font-size:12px}.gift-card small,.gift-tile small{font-size:10px;color:var(--muted)}
+.received-gifts{margin:24px 0}
+@media(max-width:720px){.shop-send{grid-template-columns:1fr}.fons-balance{min-width:110px}.gift-catalog,.gift-wall{grid-template-columns:repeat(2,minmax(0,1fr))}}
