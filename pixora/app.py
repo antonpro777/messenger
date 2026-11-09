@@ -210,11 +210,13 @@ def remove_image(value):
     storage_url = os.environ.get("SUPABASE_URL", "").rstrip("/")
     storage_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY") or os.environ.get("SUPABASE_SECRET_KEY")
     if storage_url and storage_key and value.startswith(storage_url + "/storage/v1/object/"):
-        filename = value.rsplit("/", 1)[-1]
+        bucket = "pixora-videos" if "/pixora-videos/" in value else "pixora-uploads"
+        marker = "/" + bucket + "/"
+        object_path = value.split(marker, 1)[1].split("?", 1)[0] if marker in value else value.rsplit("/", 1)[-1]
         requests.delete(
-            f"{storage_url}/storage/v1/object/pixora-uploads",
+            f"{storage_url}/storage/v1/object/{bucket}",
             headers={"Authorization": f"Bearer {storage_key}", "apikey": storage_key},
-            json={"prefixes": [filename]},
+            json={"prefixes": [object_path]},
             timeout=20,
         )
         return
@@ -509,7 +511,7 @@ def add_comment(post_id):
 def chats():
     from sqlalchemy import case
     peer_id = case((Message.sender_id == current_user.id, Message.recipient_id), else_=Message.sender_id)
-    latest = db.session.query(func.max(Message.created_at).label("last_at"), peer_id.label("peer_id")).filter(or_(Message.sender_id == current_user.id, Message.recipient_id == current_user.id)).group_by("peer_id").subquery()
+    latest = db.session.query(func.max(Message.created_at).label("last_at"), peer_id.label("peer_id")).filter(or_(Message.sender_id == current_user.id, Message.recipient_id == current_user.id)).group_by(peer_id).subquery()
     people = User.query.join(latest, User.id == latest.c.peer_id).order_by(latest.c.last_at.desc()).all()
     return render_template("chats.html", people=people)
 
