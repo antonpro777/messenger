@@ -1,11 +1,11 @@
 {% extends "base.html" %}
 {% block title %}Новая публикация{% endblock %}
 {% block content %}
-<div class="form-page"><div class="eyebrow">НОВЫЙ МОМЕНТ</div><h1>Поделись <span>кадром.</span></h1><p class="muted">Фото или короткое вертикальное видео до 60 секунд.</p>
+<div class="form-page"><div class="eyebrow">НОВЫЙ МОМЕНТ</div><h1>Поделись <span>кадром.</span></h1><p class="muted">Фото, короткий Pixo-клип или обычное видео в общую ленту.</p>
 <form id="publish-form" method="post" enctype="multipart/form-data" class="panel form-stack">
 <label class="upload-zone"><span class="upload-symbol">＋</span><b>Выбери фотографию</b><small>JPG, PNG, GIF или WEBP · до 12 МБ</small><input id="photo-file" type="file" name="photo" accept="image/jpeg,image/png,image/gif,image/webp"></label>
-<label class="upload-zone"><span class="upload-symbol">▶</span><b>Или выбери видео Pixo</b><small>MP4 / WebM · до 60 секунд после обрезки · загрузка до 45 МБ</small><input id="video-file" type="file" accept="video/mp4,video/webm"></label>
-<div id="video-editor" class="video-editor" hidden><video id="video-preview" controls playsinline></video><p id="video-duration" class="muted"></p><div class="trim-fields"><label>Начало, сек. <input id="trim-start" type="number" min="0" step="0.1" value="0"></label><label>Конец, сек. <input id="trim-end" type="number" min="0" step="0.1" value="60"></label></div><small class="muted">Выбери отрезок до 60 секунд. Длинное видео будет обрезано прямо в браузере.</small><div id="upload-progress" class="upload-progress" hidden><span id="upload-progress-bar"></span></div><p id="upload-status" class="muted" aria-live="polite"></p></div>
+<label class="upload-zone"><span class="upload-symbol">▶</span><b>Или выбери видео</b><small>MP4 / WebM · загрузка до 45 МБ</small><input id="video-file" type="file" accept="video/mp4,video/webm"></label>
+<div id="video-editor" class="video-editor" hidden><video id="video-preview" controls playsinline></video><p id="video-duration" class="muted"></p><label>Формат публикации<select id="video-mode"><option value="pixo">Pixo — вертикальный ролик до 60 секунд</option><option value="feed">Обычное видео — в ленту и рекомендации</option></select></label><div id="trim-controls"><div class="trim-fields"><label>Начало, сек. <input id="trim-start" type="number" min="0" step="0.1" value="0"></label><label>Конец, сек. <input id="trim-end" type="number" min="0" step="0.1" value="60"></label></div><small class="muted">Для Pixo выбери отрезок до 60 секунд. Длинный исходник обрежется в браузере.</small></div><div id="upload-progress" class="upload-progress" hidden><span id="upload-progress-bar"></span></div><p id="upload-status" class="muted" aria-live="polite"></p></div>
 <label>Подпись<textarea id="caption" name="caption" rows="4" maxlength="500" placeholder="О чём этот момент?"></textarea></label>
 <button id="publish-button" class="button button-primary full" type="submit">Опубликовать ↗</button></form></div>
 <script src="https://cdn.jsdelivr.net/npm/tus-js-client@4/dist/tus.min.js"></script>
@@ -15,6 +15,8 @@
  const editor=document.getElementById('video-editor'), video=document.getElementById('video-preview');
  const start=document.getElementById('trim-start'), end=document.getElementById('trim-end');
  const status=document.getElementById('upload-status'), progress=document.getElementById('upload-progress'), bar=document.getElementById('upload-progress-bar'), button=document.getElementById('publish-button');
+ const mode=document.getElementById('video-mode'), trimControls=document.getElementById('trim-controls');
+ mode.addEventListener('change',()=>{trimControls.hidden=mode.value!=='pixo';});
  let duration=0, busy=false, objectUrl=null;
  photo.addEventListener('change',()=>{if(photo.files.length){input.value='';editor.hidden=true;video.removeAttribute('src');}});
  input.addEventListener('change',()=>{
@@ -57,23 +59,26 @@
  form.addEventListener('submit',async e=>{
    if(!input.files.length)return;
    e.preventDefault();if(busy)return;
-   const from=Number(start.value),to=Number(end.value);
-   if(!Number.isFinite(from)||!Number.isFinite(to)||from<0||to>duration||to<=from||to-from>60){status.textContent='Выбери корректный отрезок длиной не более 60 секунд.';return;}
+   const isPixo=mode.value==='pixo',from=Number(start.value),to=Number(end.value);
+   if(isPixo&&(!Number.isFinite(from)||!Number.isFinite(to)||from<0||to>duration||to<=from||to-from>60)){status.textContent='Выбери корректный отрезок Pixo длиной не более 60 секунд.';return;}
+   if(!isPixo&&(!Number.isFinite(duration)||duration<=0)){status.textContent='Не удалось определить длительность видео.';return;}
    if(!window.tus){status.textContent='Не загрузился модуль загрузки. Обнови страницу.';return;}
    busy=true;button.disabled=true;button.textContent='Подготовка видео…';progress.hidden=false;bar.style.width='3%';
    try{
-     status.textContent='Обрезаем видео…';
-     const clip=await trimVideo(from,to);
-     if(clip.size>45*1024*1024)throw new Error('После обрезки файл больше 45 МБ. Выбери более короткий или менее качественный исходник.');
+     status.textContent=isPixo?'Обрезаем видео для Pixo…':'Подготавливаем видео для ленты…';
+     const clip=isPixo?await trimVideo(from,to):input.files[0];
+     if(clip.size>45*1024*1024)throw new Error('Файл больше 45 МБ. Выбери видео меньшего размера.');
+     const clipDuration=isPixo?to-from:duration;
+     const contentType=clip.type==='video/webm'?'video/webm':'video/mp4';
      status.textContent='Подготавливаем защищённую загрузку…';
-     const signed=await fetch('/api/videos/sign',{method:'POST',credentials:'same-origin'}).then(async r=>{const j=await r.json();if(!r.ok)throw new Error(j.error||'Ошибка подготовки загрузки');return j;});
+     const signed=await fetch('/api/videos/sign',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({is_pixo:isPixo,content_type:contentType})}).then(async r=>{const j=await r.json();if(!r.ok)throw new Error(j.error||'Ошибка подготовки загрузки');return j;});
      status.textContent='Загружаем видео… Не закрывай окно.';
      await new Promise((resolve,reject)=>{
-       const upload=new tus.Upload(clip,{endpoint:signed.endpoint,chunkSize:6*1024*1024,retryDelays:[0,2000,5000,10000,20000],headers:{'x-signature':signed.token},metadata:{bucketName:'pixora-videos',objectName:signed.path,contentType:'video/webm',cacheControl:'3600'},onError:reject,onProgress:(sent,total)=>{bar.style.width=(sent/total*100).toFixed(1)+'%';status.textContent='Загрузка: '+Math.round(sent/total*100)+'%';},onSuccess:resolve});
+       const upload=new tus.Upload(clip,{endpoint:signed.endpoint,chunkSize:6*1024*1024,retryDelays:[0,2000,5000,10000,20000],headers:{'x-signature':signed.token},metadata:{bucketName:'pixora-videos',objectName:signed.path,contentType:signed.content_type,cacheControl:'3600'},onError:reject,onProgress:(sent,total)=>{bar.style.width=(sent/total*100).toFixed(1)+'%';status.textContent='Загрузка: '+Math.round(sent/total*100)+'%';},onSuccess:resolve});
        upload.start();
      });
      status.textContent='Публикуем…';
-     const result=await fetch('/api/videos/publish',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({path:signed.path,duration_seconds:to-from,caption:document.getElementById('caption').value})}).then(async r=>{const j=await r.json();if(!r.ok)throw new Error(j.error||'Не удалось опубликовать видео');return j;});
+     const result=await fetch('/api/videos/publish',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({path:signed.path,duration_seconds:clipDuration,is_pixo:isPixo,caption:document.getElementById('caption').value})}).then(async r=>{const j=await r.json();if(!r.ok)throw new Error(j.error||'Не удалось опубликовать видео');return j;});
      location.href=result.redirect;
    }catch(err){status.textContent=err.message||'Не удалось загрузить видео.';busy=false;button.disabled=false;button.textContent='Повторить публикацию ↗';}
  });
