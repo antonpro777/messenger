@@ -573,15 +573,32 @@ def chat_thread(username):
     if request.method == "POST":
         body = request.form.get("body", "").strip()[:2000]
         attachment = ""
+        attachment_type = "image"
+        voice_path = request.form.get("voice_path", "").strip()
+        if voice_path:
+            if not voice_path.startswith(f"user_{current_user.id}/") or not voice_path.endswith(".webm") or ".." in voice_path:
+                abort(400)
+            storage_url = os.environ.get("SUPABASE_URL", "").rstrip("/")
+            storage_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+            if not storage_url or not storage_key:
+                abort(503)
+            check_url = f"{storage_url}/storage/v1/object/pixora-audio/{quote(voice_path, safe='/')}"
+            check = requests.head(check_url, headers={"Authorization": f"Bearer {storage_key}", "apikey": storage_key}, timeout=15)
+            if check.status_code != 200:
+                flash("Голосовое сообщение ещё не загрузилось.", "error")
+                return redirect(url_for("chat_thread", username=peer.username))
+            attachment = voice_path
+            attachment_type = "voice"
         upload = request.files.get("photo")
         if upload and upload.filename:
             try:
                 attachment = save_image(upload)
+                attachment_type = "image"
             except ValueError as exc:
                 flash(str(exc), "error")
                 return redirect(url_for("chat_thread", username=peer.username))
         if body or attachment:
-            db.session.add(Message(sender_id=current_user.id, recipient_id=peer.id, body=body, attachment=attachment))
+            db.session.add(Message(sender_id=current_user.id, recipient_id=peer.id, body=body, attachment=attachment, attachment_type=attachment_type))
             db.session.commit()
         return redirect(url_for("chat_thread", username=peer.username))
     messages = Message.query.filter(or_((Message.sender_id == current_user.id) & (Message.recipient_id == peer.id), (Message.sender_id == peer.id) & (Message.recipient_id == current_user.id))).order_by(Message.created_at.asc()).limit(300).all()
@@ -658,6 +675,10 @@ def not_found(_):
 with app.app_context():
     try:
         db.create_all()
+        from sqlalchemy import inspect, text
+        message_columns = {column["name"] for column in inspect(db.engine).get_columns("message")}
+        if "attachment_type" not in message_columns:
+            db.session.execute(text("ALTER TABLE message ADD COLUMN attachment_type VARCHAR(12) NOT NULL DEFAULT 'image'"))
         # Additive migration for existing Pixora installations (Postgres and SQLite).
         from sqlalchemy import inspect, text
         post_columns = {column["name"] for column in inspect(db.engine).get_columns("post")}
