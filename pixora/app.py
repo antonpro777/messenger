@@ -540,7 +540,7 @@ def play_voice_message(message_id):
     storage_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
     if not storage_url or not storage_key:
         abort(503)
-    endpoint = f"{storage_url}/storage/v1/object/sign/pixora-audio/{quote(message.attachment, safe="/")}"
+    endpoint = f"{storage_url}/storage/v1/object/sign/pixora-audio/{quote(message.attachment, safe='/')}"
     try:
         response = requests.post(endpoint, headers={"Authorization": f"Bearer {storage_key}", "apikey": storage_key}, json={"expiresIn": 3600}, timeout=15)
         if not response.ok:
