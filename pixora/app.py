@@ -234,6 +234,12 @@ def index():
     return render_template("feed.html", posts=pagination.items, pagination=pagination, stories=stories)
 
 
+@app.route("/pixo")
+def pixo_feed():
+    posts = Post.query.filter_by(media_type="video").order_by(Post.created_at.desc()).limit(60).all()
+    return render_template("pixo.html", posts=posts)
+
+
 @app.route("/explore")
 def explore():
     posts = Post.query.order_by(func.random()).limit(36).all()
