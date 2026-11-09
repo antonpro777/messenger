@@ -19,3 +19,17 @@
 .video-tag{position:absolute;top:10px;left:10px;padding:5px 8px;border-radius:8px;background:#100e18d9;color:#fff;font-size:10px;font-style:normal;font-weight:800;z-index:2}
 .profile-photo>video{width:100%;height:100%;object-fit:cover}
 @media(max-width:520px){.trim-fields{grid-template-columns:1fr}}
+
+/* Pixo swipe feed */
+.pixo-feed{height:calc(100svh - 205px);min-height:440px;max-height:860px;overflow-y:auto;overscroll-behavior:contain;scroll-snap-type:y mandatory;display:grid;gap:16px;justify-content:center;scrollbar-width:thin}
+.pixo-card{position:relative;width:min(100%,430px);height:calc(100svh - 225px);min-height:420px;max-height:840px;aspect-ratio:9/16;overflow:hidden;border-radius:22px;background:#09080d;scroll-snap-align:start;isolation:isolate}
+.pixo-video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.pixo-gradient{position:absolute;inset:35% 0 0;background:linear-gradient(transparent,#08070bdc);pointer-events:none}
+.pixo-meta{position:absolute;z-index:2;inset:auto 18px 18px;display:grid;gap:12px}
+.pixo-author{display:flex;align-items:center;gap:10px;width:max-content;max-width:100%}
+.pixo-author b{display:block;font-size:13px}.pixo-author small{display:block;font-size:11px;color:#ddd}
+.pixo-meta>p{margin:0;font-size:13px;line-height:1.5;text-shadow:0 1px 4px #000}
+.pixo-actions{display:flex;align-items:center;gap:9px}
+.pixo-actions form{margin:0}.pixo-like{background:#171420c9;border:1px solid #ffffff30;border-radius:50%;width:42px;height:42px;color:white;font-size:25px;cursor:pointer}.pixo-like.liked{color:#ff6d9d}
+.pixo-comment{display:flex;gap:8px}.pixo-comment input{min-width:0;flex:1;background:#171420c9;border:1px solid #ffffff35;border-radius:10px;padding:10px;color:white}.pixo-comment button{background:var(--grad);border:0;border-radius:10px;color:white;padding:0 14px}
+@media(max-width:650px){.pixo-feed{height:calc(100svh - 190px)}.pixo-card{width:min(100%,380px);height:calc(100svh - 205px);border-radius:16px}}
