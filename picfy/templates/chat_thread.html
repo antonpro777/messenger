@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Чат с {{ peer.display_name }}{% endblock %}
+{% block content %}
+<div class="chat-layout"><section class="chat-panel">
+<div class="chat-top"><a class="avatar" href="{{ url_for('profile', username=peer.username) }}">{{ peer.display_name[:1]|upper }}</a><a href="{{ url_for('profile', username=peer.username) }}"><b>{{ peer.display_name }}</b><small class="muted">@{{ peer.username }}</small></a><a class="post-edit" href="{{ url_for('chats') }}">Все чаты</a></div>
+<div class="chat-messages" id="chat-messages">{% for message in messages %}<div class="message {% if message.sender_id == current_user.id %}mine{% endif %}">
+{% if message.attachment %}{% if message.attachment_type == 'voice' %}<audio controls preload="none" src="{{ url_for('play_voice_message', message_id=message.id) }}"></audio>{% else %}<img src="{{ media_url(message.attachment) }}" alt="Фото из сообщения">{% endif %}{% endif %}
+{% if message.body %}<div>{{ message.body }}</div>{% endif %}<time>{{ message.created_at.strftime('%d.%m %H:%M') }}</time></div>{% else %}<div class="chat-empty">Начни разговор — отправь первое сообщение.</div>{% endfor %}</div>
+<form id="chat-compose" class="chat-compose" method="post" enctype="multipart/form-data"><textarea name="body" maxlength="2000" placeholder="Написать сообщение..."></textarea><input type="hidden" name="voice_path" id="voice-path">
+<div class="sticker-row">{% for sticker in ['❤️','😂','🔥','✨','🥹','🌸','🎉','🫶'] %}<button type="button" onclick="const t=this.closest('form').querySelector('textarea');t.value+=this.textContent;t.focus()">{{ sticker }}</button>{% endfor %}</div>
+<div class="voice-controls"><button type="button" id="record-voice" class="button button-ghost">🎙 Записать голосовое</button><span id="voice-status" class="muted" aria-live="polite"></span></div>
+<input type="file" name="photo" accept="image/jpeg,image/png,image/gif,image/webp"><button type="submit">Отправить</button></form>
+</section></div>
+<script src="https://cdn.jsdelivr.net/npm/tus-js-client@4/dist/tus.min.js"></script>
+<script>
+(() => {
+ const box=document.getElementById('chat-messages');if(box)box.scrollTop=box.scrollHeight;
+ const button=document.getElementById('record-voice'),status=document.getElementById('voice-status'),form=document.getElementById('chat-compose'),hidden=document.getElementById('voice-path');
+ if(!button)return;
+ let recorder=null,stream=null,chunks=[],recording=false;
+ button.addEventListener('click',async()=>{
+   if(recording){recorder.stop();button.disabled=true;button.textContent='Обработка…';return;}
+   if(!navigator.mediaDevices?.getUserMedia||!window.MediaRecorder){status.textContent='Запись голоса не поддерживается этим браузером.';return;}
+   try{
+     stream=await navigator.mediaDevices.getUserMedia({audio:true});
+     const mime='audio/webm';if(!MediaRecorder.isTypeSupported(mime))throw new Error('Формат голосовой записи не поддерживается.');
+     chunks=[];recorder=new MediaRecorder(stream,{mimeType:mime,audioBitsPerSecond:64000});
+     recorder.ondataavailable=e=>{if(e.data.size)chunks.push(e.data);};
+     recorder.onerror=()=>{status.textContent='Не удалось записать голосовое сообщение.';stream?.getTracks().forEach(t=>t.stop());recording=false;button.disabled=false;button.textContent='🎙 Записать голосовое';};
+     recorder.onstop=async()=>{
+       stream?.getTracks().forEach(t=>t.stop());recording=false;
+       const blob=new Blob(chunks,{type:mime});
+       if(blob.size>15*1024*1024){status.textContent='Запись слишком большая. Запиши короче.';button.disabled=false;button.textContent='🎙 Записать голосовое';return;}
+       try{
+         status.textContent='Подготавливаем загрузку…';
+         const signed=await fetch('/api/audio/sign',{method:'POST',credentials:'same-origin'}).then(async r=>{const j=await r.json();if(!r.ok)throw new Error(j.error||'Не удалось подготовить запись');return j;});
+         status.textContent='Загружаем голосовое сообщение…';
+         await new Promise((resolve,reject)=>{
+           const file=new File([blob],'voice-message.webm',{type:mime});
+           const upload=new tus.Upload(file,{endpoint:signed.endpoint,chunkSize:6*1024*1024,retryDelays:[0,2000,5000,10000],headers:{'x-signature':signed.token},metadata:{bucketName:'picfy-audio',objectName:signed.path,contentType:mime,cacheControl:'3600'},onError:reject,onProgress:(sent,total)=>{status.textContent='Загрузка '+Math.round(sent/total*100)+'%';},onSuccess:resolve});
+           upload.start();
+         });
+         hidden.value=signed.path;status.textContent='Отправляем…';form.requestSubmit();
+       }catch(err){status.textContent=err.message||'Ошибка отправки';button.disabled=false;button.textContent='🎙 Записать голосовое';}
+     };
+     recorder.start(500);recording=true;button.textContent='■ Остановить запись';status.textContent='Идёт запись… максимум 2 минуты';
+     setTimeout(()=>{if(recording){recorder.stop();button.disabled=true;}},120000);
+   }catch(err){status.textContent=err.message||'Нет доступа к микрофону.';stream?.getTracks().forEach(t=>t.stop());}
+ });
+})();
+</script>
+{% endblock %}
