@@ -42,6 +42,19 @@ def get_db_connection():
     )
 
 
+@app.route('/health')
+def health():
+    try:
+        with get_db_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT 1")
+                cur.fetchone()
+        return jsonify({"status": "ok", "database": "ok"})
+    except Exception:
+        app.logger.exception("Health check failed")
+        return jsonify({"status": "unavailable", "database": "unavailable"}), 503
+
+
 @app.route('/')
 def index():
     current_user = session.get('user')
@@ -541,66 +554,90 @@ def toggle_block(user_id):
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
-        username = request.form.get('username')
-        password = request.form.get('password')
+        username = (request.form.get('username') or '').strip()
+        password = request.form.get('password') or ''
+        if not username or not password:
+            return render_template('login.html', error='Введите имя пользователя и пароль.'), 400
 
-        conn = get_db_connection()
-        cur = conn.cursor()
-        cur.execute("SELECT * FROM users WHERE username = %s", (username,))
-        user = cur.fetchone()
-        
-        if user and check_password_hash(user['password_hash'], password):
-            cur.execute("UPDATE users SET status = 'В сети', last_active = CURRENT_TIMESTAMP WHERE id = %s", (user['id'],))
-            conn.commit()
-            
-            session['user'] = {
-                'id': user['id'],
-                'name': user['name'],
-                'username': user['username'],
-                'balance': user.get('balance', 0),
-                'is_admin': user.get('is_admin', False),
-                'avatar_url': user.get('avatar_url', '')
-            }
-            cur.close()
-            conn.close()
+        conn = None
+        try:
+            conn = get_db_connection()
+            with conn.cursor() as cur:
+                cur.execute("SELECT * FROM users WHERE LOWER(username) = LOWER(%s) LIMIT 1", (username,))
+                user = cur.fetchone()
+                if not user or not check_password_hash(user['password_hash'], password):
+                    return render_template('login.html', error='Неверное имя пользователя или пароль.'), 401
+
+                cur.execute(
+                    "UPDATE users SET status = 'В сети', last_active = CURRENT_TIMESTAMP WHERE id = %s",
+                    (user['id'],)
+                )
+                conn.commit()
+                session.clear()
+                session['user'] = {
+                    'id': user['id'],
+                    'name': user['name'],
+                    'username': user['username'],
+                    'balance': user.get('balance', 0),
+                    'is_admin': user.get('is_admin', False),
+                    'avatar_url': user.get('avatar_url', '')
+                }
             return redirect(url_for('index'))
-            
-        cur.close()
-        conn.close()
-        return "Неверный логин или пароль", 401
+        except Exception:
+            app.logger.exception("Login failed")
+            return render_template('login.html', error='Сервис временно недоступен. Попробуйте позже.'), 503
+        finally:
+            if conn:
+                conn.close()
 
     return render_template('login.html')
+
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
         if 'terms_agree' not in request.form:
-            return "Ошибка: Вы должны согласиться с Политикой конфиденциальности и Условиями использования.", 400
+            return render_template('register.html', error='Нужно принять условия использования.'), 400
 
-        name = request.form.get('name')
-        username = request.form.get('username')
-        password = request.form.get('password')
+        name = (request.form.get('name') or '').strip()
+        username = (request.form.get('username') or '').strip()
+        password = request.form.get('password') or ''
 
-        if not re.match("^[A-Za-z0-9_]+$", username):
-            return "Ошибка: Юзернейм должен содержать только латинские буквы, цифры и знак подчеркивания.", 400
+        if not name or len(name) > 60:
+            return render_template('register.html', error='Укажите имя длиной до 60 символов.'), 400
+        if not re.fullmatch(r'[A-Za-z0-9_]{3,24}', username):
+            return render_template('register.html', error='Имя пользователя: 3–24 символа, только латинские буквы, цифры и _.'), 400
+        if len(password) < 8 or len(password) > 128:
+            return render_template('register.html', error='Пароль должен содержать от 8 до 128 символов.'), 400
 
         password_hash = generate_password_hash(password)
-
+        conn = None
         try:
             conn = get_db_connection()
-            cur = conn.cursor()
-            cur.execute(
-                "INSERT INTO users (name, username, password_hash, status, balance, bio, last_active, is_admin, avatar_url) VALUES (%s, %s, %s, 'В сети', 0, '', CURRENT_TIMESTAMP, FALSE, '')",
-                (name, username, password_hash)
-            )
+            with conn.cursor() as cur:
+                cur.execute(
+                    """INSERT INTO users
+                       (name, username, password_hash, status, balance, bio, last_active, is_admin, avatar_url)
+                       VALUES (%s, %s, %s, 'В сети', 0, '', CURRENT_TIMESTAMP, FALSE, '')""",
+                    (name, username.lower(), password_hash)
+                )
             conn.commit()
-            cur.close()
-            conn.close()
             return redirect(url_for('login'))
-        except Exception as e:
-            return f"Ошибка при регистрации (возможно, такой юзернейм уже занят): {e}", 400
+        except psycopg2.errors.UniqueViolation:
+            if conn:
+                conn.rollback()
+            return render_template('register.html', error='Это имя пользователя уже занято.'), 409
+        except Exception:
+            if conn:
+                conn.rollback()
+            app.logger.exception("Registration failed")
+            return render_template('register.html', error='Не удалось создать аккаунт: сервис временно недоступен.'), 503
+        finally:
+            if conn:
+                conn.close()
 
     return render_template('register.html')
+
 
 @app.route('/send', methods=['POST'])
 def send_message():
@@ -631,11 +668,15 @@ def send_message():
                 file_options={"content-type": file.content_type}
             )
             file_url = get_supabase().storage.from_(STORAGE_BUCKET).get_public_url(unique_filename)
-        except Exception as e:
-            print(f"Ошибка загрузки файла в Supabase: {e}")
+        except Exception:
+            app.logger.exception("Message attachment upload failed")
+            return jsonify({"success": False, "error": "Не удалось загрузить файл. Проверьте настройки хранилища."}), 503
 
-        if file_ext in ['png', 'jpg', 'jpeg', 'gif']:
+        mime_type = (file.content_type or "").lower()
+        if file_ext in ['png', 'jpg', 'jpeg', 'gif', 'webp'] or mime_type.startswith('image/'):
             file_type = 'image'
+        elif file_ext in ['webm', 'ogg', 'mp3', 'm4a', 'mp4', 'wav', 'aac'] or mime_type.startswith('audio/'):
+            file_type = 'audio'
         else:
             file_type = 'document'
 
