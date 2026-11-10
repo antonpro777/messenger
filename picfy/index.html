@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#f7f7fb">
+  <title>Picfy — делись моментами</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <a class="brand" href="#" aria-label="Picfy"><span class="brand-mark">p</span><span>picfy</span></a>
+      <nav class="main-nav" aria-label="Главная навигация">
+        <a class="nav-link active" href="#home"><span class="nav-icon">⌂</span>Главная</a>
+        <a class="nav-link" href="#explore"><span class="nav-icon">⌕</span>Интересное</a>
+        <a class="nav-link" href="#messages"><span class="nav-icon">↗</span>Сообщения <i class="nav-dot"></i></a>
+        <a class="nav-link" href="#notifications"><span class="nav-icon">♡</span>Уведомления</a>
+        <a class="nav-link" href="#create" id="navCreate"><span class="nav-icon">＋</span>Создать</a>
+        <a class="nav-link" href="#profile"><span class="nav-icon">◉</span>Профиль</a>
+      </nav>
+      <div class="sidebar-bottom">
+        <div class="mini-profile"><div class="avatar avatar-me">A</div><div><b>anton</b><small>Мой профиль</small></div><span class="more">···</span></div>
+        <div class="sidebar-note">Твои моменты. Твоя история.</div>
+      </div>
+    </aside>
+
+    <main class="main-content" id="home">
+      <header class="mobile-header"><a class="brand" href="#"><span class="brand-mark">p</span><span>picfy</span></a><button class="icon-button" aria-label="Сообщения">↗</button></header>
+      <div class="content-grid">
+        <section class="feed-column">
+          <div class="stories-panel">
+            <div class="section-heading"><div><span class="eyebrow">ТВОЙ КРУГ</span><h2>Истории</h2></div><button class="text-button" id="allStories">Смотреть все <span>→</span></button></div>
+            <div class="stories" id="stories">
+              <button class="story add-story" id="addStory"><span class="story-ring"><span class="avatar avatar-me">A</span><i>＋</i></span><span>Ваша история</span></button>
+              <button class="story"><span class="story-ring ring-a"><span class="avatar" style="background-image:url('https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop')"></span></span><span>maria</span></button>
+              <button class="story"><span class="story-ring ring-b"><span class="avatar" style="background-image:url('https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=120&h=120&fit=crop')"></span></span><span>daniel</span></button>
+              <button class="story"><span class="story-ring ring-c"><span class="avatar" style="background-image:url('https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=120&h=120&fit=crop')"></span></span><span>sofia</span></button>
+              <button class="story"><span class="story-ring ring-d"><span class="avatar" style="background-image:url('https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=120&h=120&fit=crop')"></span></span><span>max</span></button>
+              <button class="story"><span class="story-ring ring-e"><span class="avatar" style="background-image:url('https://images.unsplash.com/photo-1531123897727-8f129e1688ce?w=120&h=120&fit=crop')"></span></span><span>alina</span></button>
+            </div>
+          </div>
+
+          <div class="feed-topline"><div><span class="eyebrow">СВЕЖЕЕ</span><h1>Твоя лента</h1></div><button class="filter-button" id="feedFilter">Для тебя <span>⌄</span></button></div>
+          <div id="posts">
+            <article class="post-card">
+              <div class="post-header"><div class="user-line"><div class="avatar" style="background-image:url('https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop')"></div><div><b>maria.s</b><small>Brooklyn, New York</small></div></div><button class="more-button" aria-label="Ещё">···</button></div>
+              <div class="post-image image-one" role="img" aria-label="Пейзаж с горами и озером"><span class="image-tag">WEEKEND ESCAPE</span></div>
+              <div class="post-actions"><div><button class="action like" aria-label="Нравится">♡</button><button class="action comment" aria-label="Комментарии">▢</button><button class="action share" aria-label="Поделиться">↗</button></div><button class="action bookmark" aria-label="Сохранить">♧</button></div>
+              <div class="post-copy"><b class="likes">2 481 отметка «Нравится»</b><p><b>maria.s</b> Иногда лучший план — просто свернуть с привычного маршрута. ✨ <a href="#tags">#weekendvibes #nature</a></p><button class="comments-link">Посмотреть все 38 комментариев</button><div class="comment-entry"><input aria-label="Добавить комментарий" placeholder="Добавьте комментарий…"><button class="send-comment">Опубликовать</button></div></div>
+            </article>
+
+            <article class="post-card">
+              <div class="post-header"><div class="user-line"><div class="avatar" style="background-image:url('https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=120&h=120&fit=crop')"></div><div><b>daniel.woods</b><small>15 минут назад</small></div></div><button class="more-button" aria-label="Ещё">···</button></div>
+              <div class="post-image image-two" role="img" aria-label="Уютное кафе с чашкой кофе"><span class="image-tag">SLOW MORNINGS</span></div>
+              <div class="post-actions"><div><button class="action like" aria-label="Нравится">♡</button><button class="action comment" aria-label="Комментарии">▢</button><button class="action share" aria-label="Поделиться">↗</button></div><button class="action bookmark" aria-label="Сохранить">♧</button></div>
+              <div class="post-copy"><b class="likes">864 отметки «Нравится»</b><p><b>daniel.woods</b> Кофе, музыка и никаких срочных дел. ☕</p><button class="comments-link">Посмотреть все 12 комментариев</button><div class="comment-entry"><input aria-label="Добавить комментарий" placeholder="Добавьте комментарий…"><button class="send-comment">Опубликовать</button></div></div>
+            </article>
+          </div>
+        </section>
+
+        <aside class="right-column">
+          <div class="profile-card"><div class="profile-cover"></div><div class="profile-info"><div class="avatar avatar-me large">A</div><div><b>anton</b><small>@anton</small></div><button class="edit-profile">Изменить</button></div><div class="profile-stats"><div><b>12</b><small>публикаций</small></div><div><b>248</b><small>подписчиков</small></div><div><b>180</b><small>подписки</small></div></div></div>
+          <div class="suggestions"><div class="suggestion-heading"><b>Кого читать</b><button class="text-button" id="seeAll">Все</button></div>
+            <div class="suggestion"><div class="avatar" style="background-image:url('https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=120&h=120&fit=crop')"></div><div><b>sofia.lee</b><small>Популярно рядом</small></div><button class="follow">Подписаться</button></div>
+            <div class="suggestion"><div class="avatar" style="background-image:url('https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=120&h=120&fit=crop')"></div><div><b>max_river</b><small>Возможно, знакомы</small></div><button class="follow">Подписаться</button></div>
+            <div class="suggestion"><div class="avatar" style="background-image:url('https://images.unsplash.com/photo-1531123897727-8f129e1688ce?w=120&h=120&fit=crop')"></div><div><b>alina.jpg</b><small>Новый автор</small></div><button class="follow">Подписаться</button></div>
+          </div>
+          <div class="right-footer">О Picfy · Помощь · Конфиденциальность · Условия<br>© 2026 PICFY</div>
+        </aside>
+      </div>
+    </main>
+  </div>
+
+  <nav class="mobile-nav"><a class="selected" href="#home">⌂</a><a href="#explore">⌕</a><button id="mobileCreate">＋</button><a href="#notifications">♡</a><a href="#profile">◉</a></nav>
+
+  <dialog id="createDialog" class="create-dialog">
+    <div class="dialog-head"><h2>Новая публикация</h2><button class="close-dialog" aria-label="Закрыть">×</button></div>
+    <form id="postForm"><label class="upload-zone" for="photoInput"><span class="upload-symbol">＋</span><b>Добавь фото в Picfy</b><small>Выбери изображение с устройства</small><span class="choose-file">Выбрать фото</span><img id="preview" alt="Предпросмотр" hidden></label><input id="photoInput" type="file" accept="image/*" hidden><label class="caption-label" for="captionInput">Подпись</label><textarea id="captionInput" placeholder="О чём хочешь рассказать?" rows="3"></textarea><button class="publish-button" type="submit">Опубликовать</button></form>
+  </dialog>
+  <div class="toast" id="toast" role="status"></div>
+  <script src="app.js"></script>
+</body>
+</html>
