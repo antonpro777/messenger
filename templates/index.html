@@ -793,12 +793,16 @@
             fetch('/send', {
                 method: 'POST',
                 body: formData
-            }).then(response => {
-                if (response.ok) {
-                    input.value = '';
-                    fileInput.value = '';
-                    input.placeholder = "Написать сообщение...";
+            }).then(async response => {
+                if (!response.ok) {
+                    const message = await response.text();
+                    throw new Error(message || 'Не удалось отправить сообщение.');
                 }
+                input.value = '';
+                fileInput.value = '';
+                input.placeholder = "Написать сообщение...";
+            }).catch(error => {
+                alert(error.message || 'Ошибка отправки сообщения.');
             });
         }
 
