@@ -1,7 +1,12 @@
 import os
 import uuid
 import requests
-from datetime import datetime
+import re
+import secrets
+import hashlib
+import smtplib
+from email.message import EmailMessage
+from datetime import datetime, timedelta
 from pathlib import Path
 from urllib.parse import quote
 
@@ -54,6 +59,17 @@ login_manager = LoginManager(app)
 login_manager.login_view = "login"
 login_manager.login_message = "Войдите в Picfy, чтобы продолжить."
 login_manager.login_message_category = "info"
+
+
+class EmailCode(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    email = db.Column(db.String(255), nullable=False, index=True)
+    purpose = db.Column(db.String(12), nullable=False)
+    username = db.Column(db.String(30), nullable=True)
+    code_hash = db.Column(db.String(64), nullable=False)
+    expires_at = db.Column(db.DateTime, nullable=False)
+    attempts = db.Column(db.Integer, nullable=False, default=0)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
 
 class User(UserMixin, db.Model):
@@ -279,43 +295,151 @@ def explore():
     return render_template("explore.html", posts=posts)
 
 
-@app.route("/register", methods=["GET", "POST"])
+BLOCKED_USERNAME_TERMS = {
+    "fuck", "shit", "bitch", "asshole", "bastard", "dick", "pussy", "cunt",
+    "nigger", "faggot", "whore", "slut", "porn", "xxx",
+    "blyat", "blat", "suka", "suk", "pidor", "pizda", "hui", "huy",
+    "ebat", "yebat", "mudak", "zalupa", "nahui", "nahuy"
+}
+
+
+def username_problem(username):
+    if not re.fullmatch(r"[A-Za-z0-9_]{3,30}", username or ""):
+        return "Ник: 3–30 символов, только английские буквы, цифры и _."
+    normalized = username.lower()
+    normalized = normalized.translate(str.maketrans({"0":"o","1":"i","3":"e","4":"a","5":"s","7":"t","8":"b","@":"a","$":"s"}))
+    words = [part for part in re.split(r"[^a-z]+", normalized) if part]
+    if any(word in BLOCKED_USERNAME_TERMS for word in words):
+        return "Этот ник не подходит. Выбери другое имя пользователя."
+    return None
+
+
+def send_email_code(recipient, code, purpose):
+    host = os.environ.get("SMTP_HOST")
+    port = int(os.environ.get("SMTP_PORT", "587"))
+    username = os.environ.get("SMTP_USER")
+    password = os.environ.get("SMTP_PASSWORD")
+    sender = os.environ.get("MAIL_FROM") or username
+    if not all((host, username, password, sender)):
+        raise RuntimeError("Email sender is not configured")
+    subject = "Код входа в Picfy" if purpose == "login" else "Подтверждение регистрации Picfy"
+    message = EmailMessage()
+    message["Subject"] = subject
+    message["From"] = sender
+    message["To"] = recipient
+    message.set_content(
+        f"Твой код подтверждения Picfy: {code}\n\n"
+        "Код действует 10 минут. Никому его не сообщай. "
+        "Если ты не запрашивал этот код, просто проигнорируй письмо."
+    )
+    if port == 465:
+        with smtplib.SMTP_SSL(host, port, timeout=15) as smtp:
+            smtp.login(username, password)
+            smtp.send_message(message)
+    else:
+        with smtplib.SMTP(host, port, timeout=15) as smtp:
+            smtp.ehlo()
+            smtp.starttls()
+            smtp.ehlo()
+            smtp.login(username, password)
+            smtp.send_message(message)
+
+
+@app.route("/register")
 def register():
     if current_user.is_authenticated:
         return redirect(url_for("index"))
-    if request.method == "POST":
-        username = request.form.get("username", "").strip().lower()
-        email = request.form.get("email", "").strip().lower()
-        password = request.form.get("password", "")
-        if not (3 <= len(username) <= 30) or not username.isascii() or not username.replace("_", "").isalnum():
-            flash("Имя пользователя: 3–30 символов, латинские буквы, цифры и _.", "error")
-        elif len(password) < 8:
-            flash("Пароль должен содержать не менее 8 символов.", "error")
-        elif User.query.filter(or_(User.username == username, User.email == email)).first():
-            flash("Такое имя пользователя или почта уже зарегистрированы.", "error")
-        else:
-            user = User(username=username, email=email, display_name=username)
-            user.set_password(password)
-            db.session.add(user)
-            db.session.commit()
-            login_user(user)
-            flash("Добро пожаловать в Picfy!", "success")
-            return redirect(url_for("index"))
     return render_template("auth.html", mode="register")
 
 
-@app.route("/login", methods=["GET", "POST"])
+@app.route("/login")
 def login():
     if current_user.is_authenticated:
         return redirect(url_for("index"))
-    if request.method == "POST":
-        identity = request.form.get("identity", "").strip().lower()
-        user = User.query.filter(or_(User.username == identity, User.email == identity)).first()
-        if user and user.check_password(request.form.get("password", "")):
-            login_user(user)
-            return redirect(request.args.get("next") or url_for("index"))
-        flash("Неверное имя пользователя, почта или пароль.", "error")
     return render_template("auth.html", mode="login")
+
+
+@app.route("/auth/send-code", methods=["POST"])
+def auth_send_code():
+    data = request.get_json(silent=True) or {}
+    email = str(data.get("email", "")).strip().lower()
+    purpose = str(data.get("purpose", ""))
+    username = str(data.get("username", "")).strip()
+    if not re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", email) or len(email) > 255:
+        return {"error": "Укажи корректный адрес электронной почты."}, 400
+    if purpose not in {"register", "login"}:
+        return {"error": "Неизвестное действие."}, 400
+    if purpose == "register":
+        problem = username_problem(username)
+        if problem:
+            return {"error": problem}, 400
+        if User.query.filter(or_(User.username == username.lower(), User.email == email)).first():
+            return {"error": "Этот ник или email уже заняты."}, 409
+    elif not User.query.filter_by(email=email).first():
+        return {"error": "Аккаунт с таким email не найден. Сначала зарегистрируйся."}, 404
+    recent = EmailCode.query.filter_by(email=email, purpose=purpose).order_by(EmailCode.created_at.desc()).first()
+    if recent and recent.created_at > datetime.utcnow() - timedelta(seconds=60):
+        return {"error": "Подожди минуту перед повторной отправкой кода."}, 429
+    code = f"{secrets.randbelow(900000) + 100000:06d}"
+    code_hash = hashlib.sha256((email + ":" + code + app.config["SECRET_KEY"]).encode()).hexdigest()
+    EmailCode.query.filter_by(email=email, purpose=purpose).delete()
+    record = EmailCode(email=email, purpose=purpose, username=username.lower() if purpose == "register" else None,
+                       code_hash=code_hash, expires_at=datetime.utcnow() + timedelta(minutes=10))
+    db.session.add(record)
+    db.session.commit()
+    try:
+        send_email_code(email, code, purpose)
+    except Exception:
+        db.session.delete(record)
+        db.session.commit()
+        app.logger.exception("Picfy email delivery failed")
+        return {"error": "Не удалось отправить письмо. Проверь настройки почты Picfy."}, 503
+    return {"ok": True, "message": "Код отправлен на указанную почту."}
+
+
+@app.route("/auth/verify-code", methods=["POST"])
+def auth_verify_code():
+    data = request.get_json(silent=True) or {}
+    email = str(data.get("email", "")).strip().lower()
+    code = str(data.get("code", "")).strip()
+    purpose = str(data.get("purpose", ""))
+    if purpose not in {"register", "login"} or not re.fullmatch(r"\d{6}", code):
+        return {"error": "Введи шестизначный код из письма."}, 400
+    record = EmailCode.query.filter_by(email=email, purpose=purpose).order_by(EmailCode.created_at.desc()).first()
+    if not record or record.expires_at < datetime.utcnow():
+        return {"error": "Код истёк или не найден. Запроси новый."}, 400
+    if record.attempts >= 5:
+        db.session.delete(record)
+        db.session.commit()
+        return {"error": "Слишком много попыток. Запроси новый код."}, 429
+    expected = hashlib.sha256((email + ":" + code + app.config["SECRET_KEY"]).encode()).hexdigest()
+    if not secrets.compare_digest(record.code_hash, expected):
+        record.attempts += 1
+        db.session.commit()
+        return {"error": "Неверный код. Проверь письмо и попробуй ещё раз."}, 400
+    if purpose == "register":
+        problem = username_problem(record.username or "")
+        if problem:
+            db.session.delete(record)
+            db.session.commit()
+            return {"error": problem}, 400
+        if User.query.filter(or_(User.username == record.username, User.email == email)).first():
+            db.session.delete(record)
+            db.session.commit()
+            return {"error": "Этот ник или email уже заняты."}, 409
+        user = User(username=record.username, email=email, password_hash=generate_password_hash(secrets.token_urlsafe(32)),
+                    display_name=record.username)
+        db.session.add(user)
+    else:
+        user = User.query.filter_by(email=email).first()
+        if not user:
+            db.session.delete(record)
+            db.session.commit()
+            return {"error": "Аккаунт не найден. Зарегистрируйся заново."}, 404
+    db.session.delete(record)
+    db.session.commit()
+    login_user(user)
+    return {"ok": True, "message": "Аккаунт успешно создан!" if purpose == "register" else "Вход выполнен!", "redirect": url_for("index")}
 
 
 @app.route("/logout", methods=["POST"])
