@@ -1,0 +1,7 @@
+{% extends "base.html" %}
+{% block title %}Поиск{% endblock %}
+{% block content %}
+<div class="page-heading"><div><div class="eyebrow">НАЙДИ СВОИХ</div><h1>Поиск <span>людей.</span></h1><p>Ищи пользователей Picfy по имени.</p></div></div>
+<form class="search-form panel" action="{{ url_for('search') }}"><input name="q" value="{{ q }}" placeholder="Имя пользователя..." autofocus><button class="button button-primary" type="submit">Найти</button></form>
+<div class="user-results">{% for user in users %}<a class="user-result panel" href="{{ url_for('profile', username=user.username) }}"><span class="avatar">{{ user.display_name[:1]|upper }}</span><span><b>{{ user.display_name }}</b><small>@{{ user.username }}</small></span><span class="result-arrow">↗</span></a>{% else %}{% if q %}<div class="empty-state"><h2>Ничего не найдено</h2><p>Попробуй другой запрос.</p></div>{% endif %}{% endfor %}</div>
+{% endblock %}
