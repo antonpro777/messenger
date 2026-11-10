@@ -116,6 +116,24 @@
         .auth-footer a:hover {
             text-decoration: underline;
         }
+        body {
+            min-height: 100vh;
+            height: auto;
+            padding: 24px 16px;
+            background: radial-gradient(circle at 15% 15%, #395da7 0, transparent 35%), linear-gradient(135deg, #0b1222, #172c4d 55%, #111827);
+        }
+        .auth-container {
+            max-width: 420px;
+            padding: 38px;
+            border-radius: 22px;
+            background: rgba(30,41,59,.96);
+            box-shadow: 0 28px 80px rgba(0,0,0,.32);
+        }
+        h2 { font-size: 25px; letter-spacing: -.6px; }
+        input { padding: 14px; border-radius: 11px; }
+        button { padding: 13px; border-radius: 11px; background: #426ff4; }
+        button:hover { background: #315fe0; }
+        @media (max-width: 480px) { .auth-container { padding: 28px 22px; } }
     </style>
 </head>
 <body>
