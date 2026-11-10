@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}Магазин фонов{% endblock %}
+{% block content %}
+<div class="page-heading"><div><div class="eyebrow">PICFY ECONOMY</div><h1>Фоны и <span>подарки.</span></h1><p>Получай фоны за лайки и отправляй подарки авторам.</p></div><div class="fons-balance"><small>ТВОЙ БАЛАНС</small><b>🪙 {{ balance }}</b><span>фонов</span></div></div>
+<section class="fons-how panel"><b>Как зарабатывать</b><p>Автор получает <strong>10 фонов</strong> за лайк. От одного пользователя автору засчитываются первые <strong>5 лайков</strong> под разными публикациями — максимум 50 фонов от одного человека. Повторные лайки и снятие лайка не позволяют получить награду повторно.</p></section>
+<section class="shop-panel panel"><div class="section-heading"><h2>Магазин подарков</h2><span>Подарки за фоны</span></div>
+<form method="post" class="shop-send"><label>Кому отправить<input name="recipient" placeholder="Имя пользователя, например anton" minlength="3" maxlength="30" required></label><label>Подарок<select name="gift" required>{% for key, gift in catalog.items() %}<option value="{{ key }}">{{ gift.emoji }} {{ gift.name }} — {{ gift.price }} фонов</option>{% endfor %}</select></label><button class="button button-primary" type="submit">Отправить подарок ↗</button></form>
+<div class="gift-catalog">{% for key, gift in catalog.items() %}<div class="gift-card"><span>{{ gift.emoji }}</span><b>{{ gift.name }}</b><small>🪙 {{ gift.price }} фонов</small></div>{% endfor %}</div></section>
+{% if gifts %}<section class="shop-panel panel"><div class="section-heading"><h2>Полученные подарки</h2></div><div class="gift-wall">{% for gift in gifts %}<div class="gift-tile"><span>{{ gift.emoji }}</span><b>{{ gift.gift_name }}</b><small>от @{{ gift.sender.username }}</small></div>{% endfor %}</div></section>{% endif %}
+{% endblock %}
