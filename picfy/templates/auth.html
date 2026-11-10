@@ -2,52 +2,119 @@
 {% block title %}{{ 'Регистрация' if mode == 'register' else 'Вход' }}{% endblock %}
 {% block content %}
 <div class="auth-page"><div class="auth-card panel">
-<div class="eyebrow">ТВОЁ СООБЩЕСТВО</div><h1>{{ 'Создай' if mode == 'register' else 'С возвращением,' }} <span>{{ 'аккаунт.' if mode == 'register' else 'друг.' }}</span></h1>
-<p class="muted">{{ 'Присоединяйся к Picfy и делись моментами.' if mode == 'register' else 'Войди, чтобы увидеть свою ленту.' }}</p>
-<form method="post" class="form-stack">
-{% if mode == 'register' %}<label>Имя пользователя
-<input id="username-field" name="username" minlength="3" maxlength="30" pattern="[A-Za-z0-9_]{3,30}" title="3–30 символов: латинские буквы, цифры и _" required placeholder="yourname">
-<span class="password-check is-invalid" id="username-check" aria-live="polite"><span class="password-check-icon" id="username-check-icon">✕</span><span id="username-check-text">3–30 символов: латинские буквы, цифры и _</span></span>
-</label><label>Email<input type="email" name="email" required placeholder="you@example.com"></label>{% else %}<label>Имя пользователя или email<input name="identity" required></label>{% endif %}
-<label>Пароль
-<input id="password-field" type="password" name="password" minlength="{{ 8 if mode == 'register' else 1 }}" required>
-{% if mode == 'register' %}<span class="password-check" id="password-check" aria-live="polite"><span class="password-check-icon" id="password-check-icon">✕</span><span id="password-check-text">Пароль пока слабый — минимум 8 символов и 2 типа символов</span></span>{% endif %}
-</label>
-<button class="button button-primary full" type="submit">{{ 'Создать аккаунт' if mode == 'register' else 'Войти' }} ↗</button>
-</form><p class="auth-switch">{% if mode == 'register' %}Уже есть аккаунт? <a href="{{ url_for('login') }}">Войти</a>{% else %}Впервые здесь? <a href="{{ url_for('register') }}">Создать аккаунт</a>{% endif %}</p>
-</div></div>
+<div class="eyebrow">ТВОЁ СООБЩЕСТВО</div>
+<h1>{{ 'Создай' if mode == 'register' else 'С возвращением,' }} <span>{{ 'аккаунт.' if mode == 'register' else 'друг.' }}</span></h1>
+<p class="muted">{{ 'Присоединяйся к Picfy и делись моментами.' if mode == 'register' else 'Войди в Picfy с помощью кода из письма.' }}</p>
+<form id="email-auth-form" class="form-stack" novalidate>
 {% if mode == 'register' %}
+<label>Имя пользователя
+<input id="username-field" name="username" minlength="3" maxlength="30" pattern="[A-Za-z0-9_]{3,30}" title="3–30 символов: английские буквы, цифры и _" required placeholder="yourname" autocomplete="username">
+<span class="password-check is-invalid" id="username-check" aria-live="polite"><span class="password-check-icon" id="username-check-icon">✕</span><span id="username-check-text">3–30 символов: английские буквы, цифры и _</span></span>
+</label>
+{% endif %}
+<label>Email
+<input id="email-field" name="email" type="email" required maxlength="255" placeholder="you@example.com" autocomplete="email">
+</label>
+<button class="button button-primary full" id="send-code" type="button">Отправить код на почту ↗</button>
+<label>Код подтверждения
+<input id="code-field" name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" placeholder="000000" required disabled>
+<span class="password-check is-invalid" id="code-check" aria-live="polite"><span class="password-check-icon" id="code-check-icon">•</span><span id="code-check-text">Введи шестизначный код из письма</span></span>
+</label>
+<p id="auth-message" class="muted" role="status" aria-live="polite"></p>
+<button class="button button-primary full" id="verify-code" type="submit" disabled>Подтвердить код</button>
+</form>
+<p class="auth-switch">{% if mode == 'register' %}Уже есть аккаунт? <a href="{{ url_for('login') }}">Войти</a>{% else %}Впервые здесь? <a href="{{ url_for('register') }}">Создать аккаунт</a>{% endif %}</p>
+</div></div>
 <script>
 (() => {
-  const usernameField = document.getElementById('username-field');
+  const purpose = {{ mode|tojson }};
+  const form = document.getElementById('email-auth-form');
+  const email = document.getElementById('email-field');
+  const username = document.getElementById('username-field');
+  const code = document.getElementById('code-field');
+  const send = document.getElementById('send-code');
+  const verify = document.getElementById('verify-code');
+  const message = document.getElementById('auth-message');
+  const codeCheck = document.getElementById('code-check');
+  const codeIcon = document.getElementById('code-check-icon');
+  const codeText = document.getElementById('code-check-text');
   const usernameCheck = document.getElementById('username-check');
   const usernameIcon = document.getElementById('username-check-icon');
-  const usernameMessage = document.getElementById('username-check-text');
-  if (usernameField && usernameCheck && usernameIcon && usernameMessage) {
-    usernameField.addEventListener('input', () => {
-      const value = usernameField.value;
-      const valid = /^[A-Za-z0-9_]{3,30}$/.test(value);
+  const usernameText = document.getElementById('username-check-text');
+  let sentTo = '';
+  const setMessage = (text, good=false) => {
+    message.textContent = text;
+    message.style.color = good ? 'var(--success, #16a34a)' : '';
+  };
+  if (username) {
+    username.addEventListener('input', () => {
+      const valid = /^[A-Za-z0-9_]{3,30}$/.test(username.value);
       usernameCheck.classList.toggle('is-valid', valid);
       usernameCheck.classList.toggle('is-invalid', !valid);
       usernameIcon.textContent = valid ? '✓' : '✕';
-      usernameMessage.textContent = valid ? 'Имя пользователя подходит' : '3–30 символов: латинские буквы, цифры и _';
+      usernameText.textContent = valid ? 'Формат ника подходит' : 'Только английские буквы, цифры и _ (3–30 символов)';
     });
   }
-  const field = document.getElementById('password-field');
-  const check = document.getElementById('password-check');
-  const icon = document.getElementById('password-check-icon');
-  const message = document.getElementById('password-check-text');
-  if (!field || !check || !icon || !message) return;
-  field.addEventListener('input', () => {
-    const value = field.value;
-    const types = [/[a-z]/.test(value), /[A-Z]/.test(value), /[0-9]/.test(value), /[^A-Za-z0-9]/.test(value)].filter(Boolean).length;
-    const valid = value.length >= 8 && types >= 2;
-    check.classList.toggle('is-valid', valid);
-    check.classList.toggle('is-invalid', !valid);
-    icon.textContent = valid ? '✓' : '✕';
-    message.textContent = valid ? 'Хороший пароль — можно создавать аккаунт' : 'Пароль пока слабый — минимум 8 символов и 2 типа символов';
+  send.addEventListener('click', async () => {
+    const payload = {email: email.value.trim(), purpose};
+    if (username) payload.username = username.value.trim();
+    send.disabled = true;
+    setMessage('Отправляем код…');
+    try {
+      const response = await fetch('{{ url_for("auth_send_code") }}', {
+        method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload)
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Не удалось отправить код.');
+      sentTo = email.value.trim().toLowerCase();
+      code.disabled = false;
+      verify.disabled = false;
+      code.focus();
+      setMessage(data.message || 'Код отправлен. Проверь почту.', true);
+    } catch (error) {
+      setMessage(error.message || 'Ошибка отправки.');
+    } finally {
+      send.disabled = false;
+    }
+  });
+  code.addEventListener('input', () => {
+    code.value = code.value.replace(/\D/g, '').slice(0, 6);
+    const valid = /^\d{6}$/.test(code.value);
+    codeCheck.classList.toggle('is-valid', valid);
+    codeCheck.classList.toggle('is-invalid', !valid);
+    codeIcon.textContent = valid ? '✓' : '•';
+    codeText.textContent = valid ? 'Шестизначный код введён' : 'Введи шестизначный код из письма';
+  });
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    if (!sentTo || email.value.trim().toLowerCase() !== sentTo) {
+      setMessage('Сначала запроси код для этого email.');
+      return;
+    }
+    if (!/^\d{6}$/.test(code.value)) {
+      setMessage('Введи шестизначный код.');
+      return;
+    }
+    verify.disabled = true;
+    setMessage('Проверяем код…');
+    try {
+      const response = await fetch('{{ url_for("auth_verify_code") }}', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({email: sentTo, code: code.value, purpose})
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Код не подошёл.');
+      codeCheck.classList.remove('is-invalid');
+      codeCheck.classList.add('is-valid');
+      codeIcon.textContent = '✓';
+      codeText.textContent = 'Почта подтверждена';
+      setMessage(data.message || 'Готово!', true);
+      window.location.assign(data.redirect || '/');
+    } catch (error) {
+      setMessage(error.message || 'Ошибка проверки кода.');
+      verify.disabled = false;
+    }
   });
 })();
 </script>
-{% endif %}
 {% endblock %}
