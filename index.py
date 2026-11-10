@@ -4,22 +4,43 @@ from werkzeug.utils import secure_filename
 import os
 import re
 import uuid
+import secrets
 import psycopg2
 from psycopg2.extras import RealDictCursor
-from supabase import create_client, Client
+from supabase import create_client
 
 app = Flask(__name__)
-app.secret_key = os.environ.get('SECRET_KEY', 'super_secret_key_for_dev')
+SECRET_KEY = os.environ.get("SECRET_KEY")
+if not SECRET_KEY and os.environ.get("VERCEL"):
+    raise RuntimeError("Set SECRET_KEY in the deployment environment.")
+app.secret_key = SECRET_KEY or secrets.token_hex(32)
+app.config["MAX_CONTENT_LENGTH"] = 25 * 1024 * 1024
+app.config["SESSION_COOKIE_HTTPONLY"] = True
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+app.config["SESSION_COOKIE_SECURE"] = bool(os.environ.get("VERCEL"))
 
-# Инициализация клиента Supabase (убедитесь, что переменные окружения SUPABASE_URL и SUPABASE_KEY заданы, либо пропишите их напрямую)
-SUPABASE_URL = os.environ.get('SUPABASE_URL', 'https://prelemswcdgnxyajajbs.supabase.co')
-SUPABASE_KEY = os.environ.get('SUPABASE_KEY', 'sb_secret_CGwUm1YmQxmbFOp38-cS9w_ejLuxpB-')
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+DATABASE_URL = os.environ.get("DATABASE_URL", "").strip()
+SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://prelemswcdgnxyajajbs.supabase.co")
+SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY") or os.environ.get("SUPABASE_KEY")
+STORAGE_BUCKET = os.environ.get("SUPABASE_STORAGE_BUCKET", "uploads")
+
+
+def get_supabase():
+    if not SUPABASE_KEY:
+        raise RuntimeError("Storage is not configured. Set SUPABASE_SERVICE_ROLE_KEY.")
+    return create_client(SUPABASE_URL, SUPABASE_KEY)
+
 
 def get_db_connection():
-    db_url = "postgresql://postgres.prelemswcdgnxyajajbs:292997746Raa@aws-0-eu-west-3.pooler.supabase.com:6543/postgres"
-    conn = psycopg2.connect(db_url, cursor_factory=RealDictCursor)
-    return conn
+    if not DATABASE_URL:
+        raise RuntimeError("Database is not configured. Set DATABASE_URL.")
+    return psycopg2.connect(
+        DATABASE_URL,
+        cursor_factory=RealDictCursor,
+        connect_timeout=10,
+        sslmode="require",
+    )
+
 
 @app.route('/')
 def index():
@@ -469,12 +490,12 @@ def settings():
             
             file_bytes = avatar_file.read()
             try:
-                supabase.storage.from_('uploads').upload(
+                get_supabase().storage.from_(STORAGE_BUCKET).upload(
                     path=unique_filename,
                     file=file_bytes,
                     file_options={"content-type": avatar_file.content_type}
                 )
-                avatar_url = supabase.storage.from_('uploads').get_public_url(unique_filename)
+                avatar_url = get_supabase().storage.from_(STORAGE_BUCKET).get_public_url(unique_filename)
             except Exception as e:
                 print(f"Ошибка загрузки аватарки в Supabase: {e}")
 
@@ -604,12 +625,12 @@ def send_message():
         
         file_bytes = file.read()
         try:
-            supabase.storage.from_('uploads').upload(
+            get_supabase().storage.from_(STORAGE_BUCKET).upload(
                 path=unique_filename,
                 file=file_bytes,
                 file_options={"content-type": file.content_type}
             )
-            file_url = supabase.storage.from_('uploads').get_public_url(unique_filename)
+            file_url = get_supabase().storage.from_(STORAGE_BUCKET).get_public_url(unique_filename)
         except Exception as e:
             print(f"Ошибка загрузки файла в Supabase: {e}")
 
