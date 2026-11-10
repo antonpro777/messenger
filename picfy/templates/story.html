@@ -1,0 +1,6 @@
+{% extends "base.html" %}
+{% block title %}История @{{ story.author.username }}{% endblock %}
+{% block content %}
+<div class="page-heading"><div><div class="eyebrow">PICFY STORIES</div><h1>История <span>@{{ story.author.username }}</span></h1></div><a class="button button-ghost" href="{{ url_for('index') }}">← В ленту</a></div>
+<article class="story-view"><img src="{{ media_url(story.media) }}" alt="История пользователя {{ story.author.username }}"><div class="story-meta"><a href="{{ url_for('profile', username=story.author.username) }}"><b>{{ story.author.display_name }}</b> · @{{ story.author.username }}</a><p>{{ story.caption }}</p><small class="muted">{{ story.created_at.strftime('%d.%m.%Y %H:%M') }}</small></div></article>
+{% endblock %}
