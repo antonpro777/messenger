@@ -18,7 +18,8 @@ from werkzeug.utils import secure_filename
 from sqlalchemy import func, or_
 
 BASE_DIR = Path(__file__).resolve().parent
-UPLOAD_DIR = Path(os.environ.get("UPLOAD_FOLDER", BASE_DIR / "static" / "uploads"))
+DEFAULT_UPLOAD_DIR = Path("/tmp/picfy-uploads") if os.environ.get("VERCEL") else BASE_DIR / "static" / "uploads"
+UPLOAD_DIR = Path(os.environ.get("UPLOAD_FOLDER", DEFAULT_UPLOAD_DIR))
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 app = Flask(__name__)
