@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}Новая публикация{% endblock %}
+{% block content %}
+<div class="form-page"><div class="eyebrow">НОВЫЙ МОМЕНТ</div><h1>Поделись <span>кадром.</span></h1><p class="muted">Фото, короткий Pixo-клип или обычное видео в общую ленту.</p>
+<form id="publish-form" method="post" enctype="multipart/form-data" class="panel form-stack">
+<label class="upload-zone"><span class="upload-symbol">＋</span><b>Выбери фотографию</b><small>JPG, PNG, GIF или WEBP · до 12 МБ</small><input id="photo-file" type="file" name="photo" accept="image/jpeg,image/png,image/gif,image/webp"></label>
+<label class="upload-zone"><span class="upload-symbol">▶</span><b>Или выбери видео</b><small>MP4 / WebM · загрузка до 45 МБ</small><input id="video-file" type="file" accept="video/mp4,video/webm"></label>
+<div id="video-editor" class="video-editor" hidden><video id="video-preview" controls playsinline></video><p id="video-duration" class="muted"></p><label>Формат публикации<select id="video-mode"><option value="pixo">Pixo — вертикальный ролик до 60 секунд</option><option value="feed">Обычное видео — в ленту и рекомендации</option></select></label><div id="trim-controls"><div class="trim-fields"><label>Начало, сек. <input id="trim-start" type="number" min="0" step="0.1" value="0"></label><label>Конец, сек. <input id="trim-end" type="number" min="0" step="0.1" value="60"></label></div><small class="muted">Для Pixo выбери отрезок до 60 секунд. Длинный исходник обрежется в браузере.</small></div><div id="upload-progress" class="upload-progress" hidden><span id="upload-progress-bar"></span></div><p id="upload-status" class="muted" aria-live="polite"></p></div>
+<label>Подпись<textarea id="caption" name="caption" rows="4" maxlength="500" placeholder="О чём этот момент?"></textarea></label>
+<button id="publish-button" class="button button-primary full" type="submit">Опубликовать ↗</button></form></div>
+<script src="https://cdn.jsdelivr.net/npm/tus-js-client@4/dist/tus.min.js"></script>
+<script>
+(() => {
+ const form=document.getElementById('publish-form'), photo=document.getElementById('photo-file'), input=document.getElementById('video-file');
+ const editor=document.getElementById('video-editor'), video=document.getElementById('video-preview');
+ const start=document.getElementById('trim-start'), end=document.getElementById('trim-end');
+ const status=document.getElementById('upload-status'), progress=document.getElementById('upload-progress'), bar=document.getElementById('upload-progress-bar'), button=document.getElementById('publish-button');
+ const mode=document.getElementById('video-mode'), trimControls=document.getElementById('trim-controls');
+ mode.addEventListener('change',()=>{trimControls.hidden=mode.value!=='pixo';});
+ let duration=0, busy=false, objectUrl=null;
+ photo.addEventListener('change',()=>{if(photo.files.length){input.value='';editor.hidden=true;video.removeAttribute('src');}});
+ input.addEventListener('change',()=>{
+   if(objectUrl)URL.revokeObjectURL(objectUrl);
+   const file=input.files[0]; if(!file){editor.hidden=true;return;}
+   photo.value=''; objectUrl=URL.createObjectURL(file);video.src=objectUrl;editor.hidden=false;
+ });
+ video.addEventListener('loadedmetadata',()=>{
+   duration=video.duration;start.value='0';end.value=Math.min(60,duration).toFixed(1);
+   document.getElementById('video-duration').textContent='Длительность исходника: '+duration.toFixed(1)+' сек.';
+ });
+ function trimVideo(from,to){
+   return new Promise((resolve,reject)=>{
+     if(!video.captureStream||!window.MediaRecorder){reject(new Error('Браузер не поддерживает обрезку видео.'));return;}
+     const scale=Math.min(1,720/Math.max(video.videoWidth,video.videoHeight));
+     const canvas=document.createElement('canvas');canvas.width=Math.max(2,Math.round(video.videoWidth*scale));canvas.height=Math.max(2,Math.round(video.videoHeight*scale));
+     const ctx=canvas.getContext('2d'), stream=canvas.captureStream(24), source=video.captureStream();
+     source.getAudioTracks().forEach(track=>stream.addTrack(track));
+     const mime=['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm'].find(type=>MediaRecorder.isTypeSupported(type));
+     if(!mime){reject(new Error('Запись WebM не поддерживается этим браузером.'));return;}
+     const recorder=new MediaRecorder(stream,{mimeType:mime,videoBitsPerSecond:1600000,audioBitsPerSecond:96000}), chunks=[];
+     recorder.ondataavailable=e=>{if(e.data.size)chunks.push(e.data);};
+     recorder.onerror=()=>reject(new Error('Не удалось обрезать видео.'));
+     recorder.onstop=()=>{source.getTracks().forEach(t=>t.stop());stream.getTracks().forEach(t=>t.stop());resolve(new File(chunks,'picfy-video.webm',{type:'video/webm'}));};
+     video.pause();video.currentTime=from;
+     video.onseeked=()=>{
+       video.onseeked=null;
+       recorder.start(500);
+       const draw=()=>{
+         if(recorder.state!=='recording')return;
+         try{ctx.drawImage(video,0,0,canvas.width,canvas.height);}catch(_){}
+         if(video.currentTime>=to||video.ended){video.pause();recorder.stop();return;}
+         requestAnimationFrame(draw);
+       };
+       video.play().then(draw).catch(()=>{recorder.stop();reject(new Error('Не удалось воспроизвести исходное видео.'));});
+     };
+     video.currentTime=from;
+   });
+ }
+ form.addEventListener('submit',async e=>{
+   if(!input.files.length)return;
+   e.preventDefault();if(busy)return;
+   const isPixo=mode.value==='pixo',from=Number(start.value),to=Number(end.value);
+   if(isPixo&&(!Number.isFinite(from)||!Number.isFinite(to)||from<0||to>duration||to<=from||to-from>60)){status.textContent='Выбери корректный отрезок Pixo длиной не более 60 секунд.';return;}
+   if(!isPixo&&(!Number.isFinite(duration)||duration<=0)){status.textContent='Не удалось определить длительность видео.';return;}
+   if(!window.tus){status.textContent='Не загрузился модуль загрузки. Обнови страницу.';return;}
+   busy=true;button.disabled=true;button.textContent='Подготовка видео…';progress.hidden=false;bar.style.width='3%';
+   try{
+     status.textContent=isPixo?'Обрезаем видео для Pixo…':'Подготавливаем видео для ленты…';
+     const clip=isPixo?await trimVideo(from,to):input.files[0];
+     if(clip.size>45*1024*1024)throw new Error('Файл больше 45 МБ. Выбери видео меньшего размера.');
+     const clipDuration=isPixo?to-from:duration;
+     const contentType=clip.type.toLowerCase().includes('webm')?'video/webm':'video/mp4';
+     status.textContent='Подготавливаем защищённую загрузку…';
+     const signed=await fetch('/api/videos/sign',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({is_pixo:isPixo,content_type:contentType})}).then(async r=>{const j=await r.json();if(!r.ok)throw new Error(j.error||'Ошибка подготовки загрузки');return j;});
+     status.textContent='Загружаем видео… Не закрывай окно.';
+     await new Promise((resolve,reject)=>{
+       const upload=new tus.Upload(clip,{endpoint:signed.endpoint,chunkSize:6*1024*1024,retryDelays:[0,2000,5000,10000,20000],headers:{'x-signature':signed.token},metadata:{bucketName:'picfy-videos',objectName:signed.path,contentType:signed.content_type,cacheControl:'3600'},onError:reject,onProgress:(sent,total)=>{bar.style.width=(sent/total*100).toFixed(1)+'%';status.textContent='Загрузка: '+Math.round(sent/total*100)+'%';},onSuccess:resolve});
+       upload.start();
+     });
+     status.textContent='Публикуем…';
+     const result=await fetch('/api/videos/publish',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({path:signed.path,duration_seconds:clipDuration,is_pixo:isPixo,caption:document.getElementById('caption').value})}).then(async r=>{const j=await r.json();if(!r.ok)throw new Error(j.error||'Не удалось опубликовать видео');return j;});
+     location.href=result.redirect;
+   }catch(err){status.textContent=err.message||'Не удалось загрузить видео.';busy=false;button.disabled=false;button.textContent='Повторить публикацию ↗';}
+ });
+})();
+</script>
+{% endblock %}
