@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Pixo видео{% endblock %}
+{% block content %}
+<div class="page-heading"><div><div class="eyebrow">PICFY SHORTS</div><h1>Pixo <span>видео.</span></h1><p>Вертикальные ролики сообщества — листай вверх и вниз.</p></div><a class="button button-primary" href="{{ url_for('upload') }}">＋ Создать Pixo</a></div>
+<div class="pixo-feed" id="pixo-feed">{% for post in posts %}<article class="pixo-card">
+<video class="pixo-video" src="{{ media_url(post.image) }}" playsinline muted loop preload="metadata"></video>
+<div class="pixo-gradient"></div><div class="pixo-meta"><a class="pixo-author" href="{{ url_for('profile', username=post.author.username) }}"><span class="avatar">{{ post.author.display_name[:1]|upper }}</span><span><b>{{ post.author.display_name }}</b><small>@{{ post.author.username }}</small></span></a>
+{% if post.caption %}<p>{{ post.caption }}</p>{% endif %}
+<div class="pixo-actions">{% if current_user.is_authenticated %}<form action="{{ url_for('toggle_like', post_id=post.id) }}" method="post"><button class="pixo-like {% if post.liked_by(current_user) %}liked{% endif %}" type="submit">{% if post.liked_by(current_user) %}♥{% else %}♡{% endif %}</button></form>{% else %}<a class="pixo-like" href="{{ url_for('login') }}">♡</a>{% endif %}<b>{{ post.likes.count() }}</b></div>
+{% if current_user.is_authenticated %}<form class="pixo-comment" action="{{ url_for('add_comment', post_id=post.id) }}" method="post"><input name="body" maxlength="500" placeholder="Комментарий..." required><button type="submit">↗</button></form>{% endif %}
+</div></article>{% else %}<div class="empty-state"><h2>Пока нет Pixo</h2><p>Здесь появятся короткие вертикальные видео.</p><a class="button button-primary" href="{{ url_for('upload') }}">Создать первое видео</a></div>{% endfor %}</div>
+<script>
+(() => {
+ const videos=[...document.querySelectorAll('.pixo-video')];
+ if(!('IntersectionObserver' in window)){videos.forEach(v=>v.play().catch(()=>{}));return;}
+ const observer=new IntersectionObserver(entries=>entries.forEach(entry=>{
+   const video=entry.target;
+   if(entry.isIntersecting&&entry.intersectionRatio>.65){videos.forEach(other=>{if(other!==video)other.pause();});video.play().catch(()=>{});}
+   else video.pause();
+ }),{threshold:[.2,.65,.9]});
+ videos.forEach(video=>observer.observe(video));
+})();
+</script>
+{% endblock %}
