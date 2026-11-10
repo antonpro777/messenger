@@ -50,3 +50,7 @@
 .gift-card>span,.gift-tile>span{font-size:34px}.gift-card b,.gift-tile b{font-size:12px}.gift-card small,.gift-tile small{font-size:10px;color:var(--muted)}
 .received-gifts{margin:24px 0}
 @media(max-width:720px){.shop-send{grid-template-columns:1fr}.fons-balance{min-width:110px}.gift-catalog,.gift-wall{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+/* Authentication layout and email-code validation */
+.auth-page{min-height:65vh;display:grid;place-items:center;padding:12px 0}.auth-page .auth-card{margin:0 auto}.password-check{display:flex;align-items:center;gap:8px;font-size:11px;line-height:1.4}.password-check-icon{width:18px;height:18px;flex:none;border-radius:50%;display:inline-grid;place-items:center;background:#2b2736;font-size:11px}.password-check.is-valid{color:#69dda7}.password-check.is-invalid{color:#9690a2}#auth-message{min-height:18px;margin:0;font-size:11px}.auth-card .eyebrow{margin-bottom:12px}.auth-card .form-stack{margin-top:22px}
+@media(max-width:700px){.auth-page{min-height:62vh}.auth-card{padding:26px 20px}}
