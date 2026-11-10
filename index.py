@@ -42,6 +42,19 @@ def get_db_connection():
     )
 
 
+@app.route('/health')
+def health():
+    try:
+        with get_db_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT 1")
+                cur.fetchone()
+        return jsonify({"status": "ok", "database": "ok"})
+    except Exception:
+        app.logger.exception("Health check failed")
+        return jsonify({"status": "unavailable", "database": "unavailable"}), 503
+
+
 @app.route('/')
 def index():
     current_user = session.get('user')
