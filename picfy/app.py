@@ -298,8 +298,8 @@ def explore():
 BLOCKED_USERNAME_TERMS = {
     "fuck", "shit", "bitch", "asshole", "bastard", "dick", "pussy", "cunt",
     "nigger", "faggot", "whore", "slut", "porn", "xxx",
-    "blyat", "blat", "suka", "suk", "pidor", "pizda", "hui", "huy",
-    "ebat", "yebat", "mudak", "zalupa", "nahui", "nahuy"
+    "blyat", "blat", "suka", "suk", "pidor", "pidaras", "pizda", "pizd", "hui", "huy",
+    "ebat", "yebat", "zaeb", "eblan", "mudak", "zalupa", "nahui", "nahuy", "huylo"
 }
 
 
@@ -309,7 +309,7 @@ def username_problem(username):
     normalized = username.lower()
     normalized = normalized.translate(str.maketrans({"0":"o","1":"i","3":"e","4":"a","5":"s","7":"t","8":"b","@":"a","$":"s"}))
     words = [part for part in re.split(r"[^a-z]+", normalized) if part]
-    if any(word in BLOCKED_USERNAME_TERMS for word in words):
+    if any(word in BLOCKED_USERNAME_TERMS for word in words) or any(term in normalized for term in BLOCKED_USERNAME_TERMS):
         return "Этот ник не подходит. Выбери другое имя пользователя."
     return None
 
